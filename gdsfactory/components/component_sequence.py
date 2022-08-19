@@ -125,7 +125,7 @@ def component_sequence(
         sequence.pop(to_rm.pop())
 
     # To generate unique aliases for each instance
-    counters = {k: count(start=1) for k in symbol_to_component.keys()}
+    counters = {k: count(start=1) for k in symbol_to_component}
 
     def _next_id(name) -> str:
         return f"{name}{next(counters[name])}"
