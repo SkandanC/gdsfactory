@@ -7,7 +7,7 @@ klayout
 lytest==0.0.20
 networkx
 pyglet
-sax==0.8.1
+sax==0.8.4
 scikit-image
 simphony==0.6.1
 sklearn
