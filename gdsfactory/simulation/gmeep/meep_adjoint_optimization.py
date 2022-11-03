@@ -17,7 +17,7 @@ from gdsfactory.types import Layer
 
 def get_meep_adjoint_optimizer(
     component: Component,
-    objective_function: Callable,
+    objective_functions: List[Callable],
     design_regions: List[DesignRegion],
     design_variables: List[MaterialGrid],
     design_update: np.ndarray,
@@ -169,7 +169,7 @@ def get_meep_adjoint_optimizer(
 
     opt = OptimizationProblem(
         simulation=sim,
-        objective_functions=[objective_function],
+        objective_functions=objective_functions,
         objective_arguments=ob_list,
         design_regions=design_regions,
         frequencies=sim_dict["freqs"],
