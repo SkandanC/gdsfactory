@@ -46,13 +46,9 @@ def mesh_from_polygons(
                     if first_shape.type == "Polygon"
                     else first_shape
                 )
-                for _second_index, (second_name, second_shapes) in enumerate(
-                    shapes_dict.items()
-                ):
+                for second_name, second_shapes in shapes_dict.items():
                     # Do not compare to itself
-                    if second_name == first_name:
-                        continue
-                    else:
+                    if second_name != first_name:
                         second_shapes = shapes_tiled_dict[second_name]
                         for second_shape in (
                             second_shapes.geoms
@@ -79,16 +75,12 @@ def mesh_from_polygons(
                                     first_exterior_line, second_interior_line
                                 )
                 # First line interiors
-                if first_shape.type == "Polygon" or first_shape.type == "MultiPolygon":
+                if first_shape.type in ["Polygon", "MultiPolygon"]:
                     first_shape_interiors = []
                     for first_interior_line in first_shape.interiors:
                         first_interior_line = LineString(first_interior_line)
-                        for _second_index, (second_name, second_shapes) in enumerate(
-                            shapes_dict.items()
-                        ):
-                            if second_name == first_name:
-                                continue
-                            else:
+                        for second_name, second_shapes in shapes_dict.items():
+                            if second_name != first_name:
                                 second_shapes = shapes_tiled_dict[second_name]
                                 for second_shape in (
                                     second_shapes.geoms
@@ -117,13 +109,13 @@ def mesh_from_polygons(
                                             first_interior_line, second_interior_line
                                         )
                         first_shape_interiors.append(first_interior_line)
-                if first_shape.type == "Polygon" or first_shape.type == "MultiPolygon":
+                if first_shape.type in ["Polygon", "MultiPolygon"]:
                     broken_shapes.append(
                         Polygon(first_exterior_line, holes=first_shape_interiors)
                     )
                 else:
                     broken_shapes.append(LineString(first_exterior_line))
-            if first_shape.type == "Polygon" or first_shape.type == "MultiPolygon":
+            if first_shape.type in ["Polygon", "MultiPolygon"]:
                 polygons_broken_dict[first_name] = (
                     MultiPolygon(broken_shapes)
                     if len(broken_shapes) > 1
@@ -177,9 +169,7 @@ def mesh_from_polygons(
             gmsh.model.mesh.field.setNumber(n + 3, "SizeMax", default_resolution_max)
             gmsh.model.mesh.field.setNumber(n + 3, "DistMin", 0)
             gmsh.model.mesh.field.setNumber(n + 3, "DistMax", mesh_distance)
-            # Save and increment
-            refinement_fields.append(n + 1)
-            refinement_fields.append(n + 3)
+            refinement_fields.extend((n + 1, n + 3))
             n += 4
 
         # Use the smallest element size overall

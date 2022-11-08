@@ -142,14 +142,12 @@ def uz_xsection_mesh(
     shapes = OrderedDict()
     ordered_layers = set(layer_order).intersection(bounds_dict.keys())
     for layer in ordered_layers:
-        layer_shapes = []
-        for polygon in bounds_dict[layer]:
-            layer_shapes.append(polygon)
+        layer_shapes = list(bounds_dict[layer])
         shapes[layer] = MultiPolygon(to_polygons(layer_shapes))
 
     # Add background polygon
     if background_tag is not None:
-        bounds = unary_union([shape for shape in shapes.values()]).bounds
+        bounds = unary_union(list(shapes.values())).bounds
         shapes[background_tag] = Polygon(
             [
                 [bounds[0] - background_padding[0], bounds[1] - background_padding[1]],
