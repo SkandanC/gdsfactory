@@ -12,7 +12,7 @@ nlopt
 phidl
 pyglet
 pygmsh
-sax==0.8.4
+sax==0.8.6
 scikit-fem
 scikit-image
 scikit-learn
