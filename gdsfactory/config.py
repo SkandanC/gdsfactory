@@ -33,7 +33,7 @@ from omegaconf import OmegaConf
 from rich.console import Console
 from rich.table import Table
 
-__version__ = "6.58.0"
+__version__ = "6.60.3"
 PathType = Union[str, pathlib.Path]
 
 home = pathlib.Path.home()
@@ -255,5 +255,6 @@ def set_plot_options(
 if __name__ == "__main__":
     # print(PATH.sparameters)
     # print_config()
-    print_version()
+    # print_version()
+    print_version_pdks()
     # write_tech("tech.json")

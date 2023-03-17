@@ -14,7 +14,7 @@ classifiers = [
 	"Programming Language :: Python :: 3.11",
 	"Operating System :: OS Independent",
 ]
-version = "6.58.0"
+version = "6.60.3"
 authors = [
     {name = "gdsfactory community", email = "contact@gdsfactory.com"},
 ]
@@ -42,9 +42,7 @@ dependencies = [
     "types-PyYAML",
     "typing_extensions",
     "watchdog",
-    "jupytext",
     "rich",
-    "klayout",
 ]
 readme = "README.md"
 requires-python = ">=3.7"
@@ -70,6 +68,8 @@ full = [
     "triangle",
     "trimesh",
     "kweb>=0.0.11,<0.1",
+    "jupytext",
+    "klayout",
     ]
 femwell = ["femwell"]
 database = ["sqlalchemy", "sqlalchemy-utils"]

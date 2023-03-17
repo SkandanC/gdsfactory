@@ -1,5 +1,20 @@
 # [CHANGELOG](https://keepachangelog.com/en/1.0.0/)
 
+## 6.60.1
+
+- Fixing connections on spiral_heater_fixed_length and removing duplicate remove_layers [PR](https://github.com/gdsfactory/gdsfactory/pull/1431)
+
+## 6.60.0
+
+- make klayout an optional dependency
+- fix cutback_2x2 [PR](https://github.com/gdsfactory/gdsfactory/pull/1430)
+
+## 6.59.1
+
+- Improve cutback_2x2 [PR](https://github.com/gdsfactory/gdsfactory/pull/1422)
+- change l_with_trenches `orient` to `mirror` to be consistent [PR](https://github.com/gdsfactory/gdsfactory/pull/1425)
+- Switch to using a dict for angular extent in section based rings [PR](https://github.com/gdsfactory/gdsfactory/pull/1423)
+
 ## 6.58.0
 
 - Bump jupyter-book from 0.14.0 to 0.15.0 [PR](https://github.com/gdsfactory/gdsfactory/pull/1416)

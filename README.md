@@ -1,4 +1,4 @@
-# gdsfactory 6.58.0
+# gdsfactory 6.60.3
 
 [![docs](https://github.com/gdsfactory/gdsfactory/actions/workflows/pages.yml/badge.svg)](https://gdsfactory.github.io/gdsfactory/)
 [![PyPI](https://img.shields.io/pypi/v/gdsfactory)](https://pypi.org/project/gdsfactory/)
@@ -52,7 +52,7 @@ It also exports component settings (for measurement and data analysis) and netli
 
 ![flow](https://i.imgur.com/XbhWJDz.png)
 
-It provides you a common syntax for design (KLayout, gdstk, Ansys Lumerical, tidy3d, MEEP, MPB, DEVSIM, SAX, ...), verification and validation.
+It provides you a common syntax for design (KLayout, gdstk, Ansys Lumerical, tidy3d, MEEP, MPB, DEVSIM, SAX, MEOW ...), verification and validation.
 
 ![tool interfaces](https://i.imgur.com/9fNLRvJ.png)
 
@@ -109,7 +109,11 @@ gf tool install
 
 You need to install the plugins separately
 
-You can install most plugins with `pip install gdsfactory[full,gmsh,tidy3d,devsim,meow,database] --upgrade`
+You can install most plugins with
+
+```
+pip install gdsfactory[full,gmsh,tidy3d,devsim,meow,database] --upgrade
+```
 
 Or you can install only the ones you need.
 
@@ -211,7 +215,7 @@ Contributors (in chronological order):
 - Simon Bilodeau (Princeton): Meep FDTD write Sparameters, TCAD device simulator.
 - Thomas Dorch (Freedom Photonics): Meep's material database access, MPB sidewall angles, and add_pin_path.
 - Jan-David Fischbach (Black semiconductor): improvements in pack_doe.
-- Igal Bayn (Google): documentation improvements and suggestions.
+- Igal Bayn (Quantum Transistors): documentation improvements and suggestions.
 - Alex Sludds (MIT): tiling fixes, ring_single_pn, ring_double_pn, straight_heater_meander_doped.
 - Momchil Minkov (Flexcompute): improve tidy3d plugin.
 - Skandan Chandrasekar (BYU): simphony, SiPANN plugins, A-star router.
