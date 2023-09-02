@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Callable
+from functools import partial
 
 from pydantic import BaseModel
 
 import gdsfactory as gf
-from gdsfactory.add_pins import add_pin_rectangle_inside
-from gdsfactory.component import Component
+from gdsfactory.add_pins import add_pins_inside1nm
 from gdsfactory.cross_section import strip
 from gdsfactory.port import select_ports
 from gdsfactory.technology import LayerLevel, LayerStack
@@ -28,7 +27,7 @@ LAYER = LayerMap()
 WIDTH_NITRIDE_OBAND = 0.9
 WIDTH_NITRIDE_CBAND = 1.0
 
-select_ports_optical = gf.partial(select_ports, layers_excluded=((100, 0),))
+select_ports_optical = partial(select_ports, layers_excluded=((100, 0),))
 
 
 def get_layer_stack_fab_c(thickness: float = 350.0) -> LayerStack:
@@ -36,7 +35,7 @@ def get_layer_stack_fab_c(thickness: float = 350.0) -> LayerStack:
     return LayerStack(
         layers=dict(
             wg=LayerLevel(
-                layer=LAYER.WG,
+                layer=(1, 0),
                 zmin=0.0,
                 thickness=0.22,
             ),
@@ -49,38 +48,11 @@ def get_layer_stack_fab_c(thickness: float = 350.0) -> LayerStack:
     )
 
 
-def add_pins(
-    component: Component,
-    function: Callable = add_pin_rectangle_inside,
-    pin_length: float = 0.5,
-    port_layer: Layer = LAYER.PIN,
-    **kwargs,
-) -> Component:
-    """Add Pin port markers.
-
-    Args:
-        component: to add ports.
-        function: to add pins.
-        pin_length: pin length in um.
-        port_layer: for port.
-        function: kwargs.
-
-    """
-    for p in component.ports.values():
-        function(
-            component=component,
-            port=p,
-            layer=port_layer,
-            layer_label=port_layer,
-            pin_length=pin_length,
-            **kwargs,
-        )
-    return component
-
+add_pins = partial(add_pins_inside1nm, pin_length=0.5)
 
 # cross_sections
 
-xs_nc = gf.partial(
+xs_nc = partial(
     strip,
     width=WIDTH_NITRIDE_CBAND,
     layer=LAYER.WGN,
@@ -88,7 +60,7 @@ xs_nc = gf.partial(
     bbox_offsets=[3],
     add_pins=add_pins,
 )
-xs_no = gf.partial(
+xs_no = partial(
     strip,
     width=WIDTH_NITRIDE_OBAND,
     layer=LAYER.WGN,
@@ -97,28 +69,28 @@ xs_no = gf.partial(
     add_pins=add_pins,
 )
 
+cross_sections = dict(xs_nc=xs_nc, xs_no=xs_no)
+
 
 # LEAF COMPONENTS have pins
-bend_euler_nc = gf.partial(
-    gf.components.bend_euler, cross_section=xs_nc, with_bbox=True
-)
-straight_nc = gf.partial(gf.components.straight, cross_section=xs_nc, with_bbox=True)
-bend_euler_o = gf.partial(gf.components.bend_euler, cross_section=xs_no, with_bbox=True)
-straight_o = gf.partial(gf.components.straight, cross_section=xs_no, with_bbox=True)
+bend_euler_nc = partial(gf.components.bend_euler, cross_section=xs_nc, with_bbox=True)
+straight_nc = partial(gf.components.straight, cross_section=xs_nc, with_bbox=True)
+bend_euler_o = partial(gf.components.bend_euler, cross_section=xs_no, with_bbox=True)
+straight_o = partial(gf.components.straight, cross_section=xs_no, with_bbox=True)
 
-mmi1x2_nc = gf.partial(
+mmi1x2_nc = partial(
     gf.components.mmi1x2,
     width=WIDTH_NITRIDE_CBAND,
     width_mmi=3,
     cross_section=xs_nc,
 )
-mmi1x2_no = gf.partial(
+mmi1x2_no = partial(
     gf.components.mmi1x2,
     width=WIDTH_NITRIDE_OBAND,
     cross_section=xs_no,
 )
 
-gc_nc = gf.partial(
+gc_nc = partial(
     gf.components.grating_coupler_elliptical,
     grating_line_width=0.6,
     layer_slab=None,
@@ -127,14 +99,14 @@ gc_nc = gf.partial(
 
 # HIERARCHICAL COMPONENTS made of leaf components
 
-mzi_nc = gf.partial(
+mzi_nc = partial(
     gf.components.mzi,
     cross_section=xs_nc,
     splitter=mmi1x2_nc,
     straight=straight_nc,
     bend=bend_euler_nc,
 )
-mzi_no = gf.partial(
+mzi_no = partial(
     gf.components.mzi,
     cross_section=xs_no,
     splitter=mmi1x2_no,
@@ -158,12 +130,14 @@ cells = dict(
 LAYER_STACK = get_layer_stack_fab_c()
 SPARAMETERS_PATH = pathlib.Path.home() / "fabc"
 
+pdk = gf.Pdk(name="fab_c_demopdk", cells=cells, cross_sections=cross_sections)
+
 
 if __name__ == "__main__":
-    c1 = mmi1x2_nc()
-    print(c1.name)
+    c1 = bend_euler_nc()
+    d = c1.to_dict()
+    print(d)
     # c1 = mmi1x2_nc()
-    # d1 = c1.to_dict()
 
     # c2 = mmi1x2_nc(cache=False)
     # d2 = c2.to_dict()

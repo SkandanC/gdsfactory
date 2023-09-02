@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Callable, Tuple
+from collections.abc import Callable
+from functools import partial
 
 import gdsfactory as gf
 from gdsfactory.component import Component
@@ -13,7 +14,7 @@ from gdsfactory.typings import ComponentSpec, LayerSpec, LayerSpecs
 def text_rectangular(
     text: str = "abcd",
     size: float = 10.0,
-    position: Tuple[float, float] = (0.0, 0.0),
+    position: tuple[float, float] = (0.0, 0.0),
     justify: str = "left",
     layer: LayerSpec = "WG",
     font: Callable = rectangular_font,
@@ -39,7 +40,7 @@ def text_rectangular(
             if character == " ":
                 xoffset += pixel_size * 6
             elif character.upper() not in characters:
-                print(f"skipping character {character} not in font")
+                print(f"skipping character {character!r} not in font")
             else:
                 pixels = characters[character.upper()]
                 ref = component.add_ref(
@@ -51,18 +52,21 @@ def text_rectangular(
 
         yoffset -= pixel_size * 6
         xoffset = position[0]
-    justify = justify.lower()
-    for ref in component.references:
-        if justify == "left":
-            pass
-        elif justify == "right":
-            ref.xmax = position[0]
-        elif justify == "center":
-            ref.move(origin=ref.center, destination=position, axis="x")
-        else:
-            raise ValueError(f"justify = {justify} not valid (left, center, right)")
 
-    return component
+    c = gf.Component()
+    ref = c << component
+    justify = justify.lower()
+    if justify == "left":
+        pass
+    elif justify == "right":
+        ref.xmax = position[0]
+    elif justify == "center":
+        ref.move(origin=ref.center, destination=position, axis="x")
+    else:
+        raise ValueError(f"justify = {justify!r} not valid (left, center, right)")
+    c.absorb(ref)
+
+    return c
 
 
 def text_rectangular_multi_layer(
@@ -84,9 +88,9 @@ def text_rectangular_multi_layer(
         justify: left, right or center
         font: function that returns dictionary of characters
     """
-    func = gf.partial(
+    func = partial(
         copy_layers,
-        factory=gf.partial(text_factory, text=text, **kwargs),
+        factory=partial(text_factory, text=text, **kwargs),
         layers=layers,
     )
     return func()

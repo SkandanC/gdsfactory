@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Tuple, Union
+from collections.abc import Callable
 
 import gdsfactory as gf
+from gdsfactory.add_labels import (
+    get_input_label_text_dash,
+    get_input_label_text_dash_loopback,
+)
 from gdsfactory.component import Component, ComponentReference
 from gdsfactory.components.bend_euler import bend_euler
 from gdsfactory.components.grating_coupler_elliptical_trenches import grating_coupler_te
@@ -11,57 +15,60 @@ from gdsfactory.components.taper import taper as taper_function
 from gdsfactory.cross_section import strip
 from gdsfactory.port import Port, select_ports_optical
 from gdsfactory.routing.get_bundle import get_bundle, get_min_spacing
+from gdsfactory.routing.get_input_labels import get_input_labels_dash
 from gdsfactory.routing.get_route import get_route_from_waypoints
 from gdsfactory.routing.manhattan import generate_manhattan_waypoints, round_corners
 from gdsfactory.routing.route_south import route_south
 from gdsfactory.routing.utils import direction_ports_from_list_ports
+from gdsfactory.snap import snap_to_grid
 from gdsfactory.typings import (
     ComponentSpec,
     ComponentSpecOrList,
     CrossSectionSpec,
     Label,
     LayerSpec,
+    Strs,
 )
 
 
 def route_fiber_array(
     component: Component,
-    fiber_spacing: Union[str, float] = "fiber_array_spacing",
+    fiber_spacing: str | float = "fiber_array_spacing",
     grating_coupler: ComponentSpecOrList = grating_coupler_te,
     bend: ComponentSpec = bend_euler,
     straight: ComponentSpec = straight_function,
     taper: ComponentSpec = taper_function,
-    fanout_length: Optional[float] = None,
+    fanout_length: float | None = None,
     max_y0_optical: None = None,
     with_loopback: bool = True,
     nlabels_loopback: int = 2,
     straight_separation: float = 6.0,
     straight_to_grating_spacing: float = 5.0,
-    optical_routing_type: Optional[int] = None,
+    optical_routing_type: int | None = None,
     connected_port_names: None = None,
     nb_optical_ports_lines: int = 1,
     force_manhattan: bool = False,
-    excluded_ports: Optional[List[str]] = None,
-    grating_indices: Optional[List[int]] = None,
+    excluded_ports: list[str] | None = None,
+    grating_indices: list[int] | None = None,
     route_filter: Callable = get_route_from_waypoints,
     gc_port_name: str = "o1",
     gc_rotation: int = -90,
     layer_label: LayerSpec = "TEXT",
-    layer_label_loopback: Optional[Tuple[int, int]] = None,
-    component_name: Optional[str] = None,
+    layer_label_loopback: LayerSpec = "TEXT",
+    component_name: str | None = None,
     x_grating_offset: int = 0,
-    optical_port_labels: Optional[Tuple[str, ...]] = None,
-    get_input_label_text_loopback_function: Callable = None,
-    get_input_label_text_function: Optional[Callable] = None,
-    get_input_labels_function: Optional[Callable] = None,
+    port_names: Strs | None = None,
+    get_input_label_text_loopback_function: Callable = get_input_label_text_dash_loopback,
+    get_input_label_text_function: Callable | None = get_input_label_text_dash,
+    get_input_labels_function: Callable | None = get_input_labels_dash,
     select_ports: Callable = select_ports_optical,
     cross_section: CrossSectionSpec = strip,
     **kwargs,
-) -> Tuple[
-    List[Union[ComponentReference, Label]],
-    List[List[ComponentReference]],
-    List[Port],
-    List[Port],
+) -> tuple[
+    list[ComponentReference | Label],
+    list[list[ComponentReference]],
+    list[Port],
+    list[Port],
 ]:
     """Returns component I/O elements for adding grating couplers with a fiber array Many components are fine with the defaults.
 
@@ -106,10 +113,10 @@ def route_fiber_array(
         route_filter: straight and bend factories
         gc_port_name: grating_coupler port name, where to route straights.
         gc_rotation: grating_coupler rotation (deg).
-        layer_label: for TM labels.
+        layer_label: for measurement labels.
         component_name: name of component.
         x_grating_offset: x offset.
-        optical_port_labels: port labels to route_to_fiber_array.
+        port_names: port labels to route_to_fiber_array.
         get_input_label_text_loopback_function: function to get input labels for grating couplers.
         get_input_label_text_function: for the label.
         get_input_labels_function: for the label.
@@ -126,21 +133,17 @@ def route_fiber_array(
     """
     fiber_spacing = gf.get_constant(fiber_spacing)
     cross_section = x = gf.get_cross_section(cross_section, **kwargs)
-    radius = x.radius
-
-    assert isinstance(
-        radius, (int, float)
-    ), f"radius = {radius} {type (radius)} needs to be int or float"
 
     component_name = component_name or component.name
     excluded_ports = excluded_ports or []
-    if optical_port_labels is None:
+    if port_names is None:
         optical_ports = list(select_ports(component.ports).values())
     else:
-        optical_ports = [component.ports[lbl] for lbl in optical_port_labels]
+        optical_ports = [component.ports[lbl] for lbl in port_names]
 
     optical_ports = [p for p in optical_ports if p.name not in excluded_ports]
     N = len(optical_ports)
+
     # optical_ports_labels = [p.name for p in optical_ports]
     # print(optical_ports_labels)
     if N == 0:
@@ -267,6 +270,10 @@ def route_fiber_array(
     gr_coupler_y_sep = grating_coupler_si.height + y_gr_gap + dy
 
     offset = (nb_ports_per_line - 1) * fiber_spacing / 2 - x_grating_offset
+    offset = snap_to_grid(offset)
+    x_c = snap_to_grid(x_c)
+    y0_optical = snap_to_grid(y0_optical)
+    gr_coupler_y_sep = snap_to_grid(gr_coupler_y_sep)
     io_gratings_lines = []  # [[gr11, gr12, gr13...], [gr21, gr22, gr23...] ...]
 
     if grating_indices is None:
@@ -333,6 +340,7 @@ def route_fiber_array(
             straight=straight,
             taper=taper,
             select_ports=select_ports,
+            port_names=port_names,
             cross_section=cross_section,
         )
         elems = route.references
@@ -384,6 +392,7 @@ def route_fiber_array(
                 straight=straight,
                 bend=bend90,
                 cross_section=cross_section,
+                enforce_port_ordering=False,
             )
             elements.extend([route.references for route in routes])
 
@@ -402,6 +411,7 @@ def route_fiber_array(
                     bend=bend90,
                     straight=straight,
                     cross_section=cross_section,
+                    enforce_port_ordering=False,
                 )
                 elements.extend([route.references for route in routes])
                 del to_route[n0 - dn : n0 + dn]
@@ -452,6 +462,9 @@ def route_fiber_array(
             bend=bend90,
             cross_section=cross_section,
         )
+        # gca1.connect(gc_port_name, route.ports[0])
+        # gca2.connect(gc_port_name, route.ports[1])
+
         elements.extend(route.references)
         if nlabels_loopback == 1:
             io_gratings_loopback = [gca1]
@@ -468,19 +481,21 @@ def route_fiber_array(
             nlabels_loopback > 0
             and get_input_labels_function
             and get_input_label_text_function
+            and layer_label
+            and layer_label_loopback
         ):
             elements.extend(
                 get_input_labels_function(
                     io_gratings=io_gratings_loopback,
                     ordered_ports=ordered_ports_loopback,
                     component_name=component_name,
-                    layer_label=layer_label_loopback or layer_label,
+                    layer_label=layer_label_loopback,
                     gc_port_name=gc_port_name,
                     get_input_label_text_function=get_input_label_text_loopback_function,
                 )
             )
 
-    if get_input_labels_function and get_input_label_text_function:
+    if get_input_labels_function and get_input_label_text_function and layer_label:
         elements.extend(
             get_input_labels_function(
                 io_gratings=io_gratings,
@@ -523,6 +538,8 @@ def demo() -> None:
 
 
 if __name__ == "__main__":
+    from gdsfactory.routing.get_input_labels import get_input_labels_dash
+
     # layer = (2, 0)
     # c = gf.components.straight(layer=layer)
     # gc = gf.components.grating_coupler_elliptical_te(layer=layer, taper_length=30)
@@ -551,12 +568,16 @@ if __name__ == "__main__":
     ci = gf.components.mmi2x2()
     ci = gf.components.straight_heater_metal()
     gc = gf.components.grating_coupler_elliptical_te(layer=layer, taper_length=30)
-    gc.xmin = -20
     elements, gc, ports, ports_loopback, ports_component = route_fiber_array(
         component=ci,
         grating_coupler=gc,
         nlabels_loopback=1,
         layer=layer,
+        # with_loopback=False,
+        layer_label="TEXT",
+        layer_label_loopback="TEXT"
+        # get_input_labels_function=get_input_labels_dash
+        # get_input_labels_function=None
         # optical_routing_type=2,
         # fanout_length=20,
         # get_input_label_text_function=None,

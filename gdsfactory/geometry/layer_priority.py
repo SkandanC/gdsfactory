@@ -1,6 +1,7 @@
 import numpy as np
+
 import gdsfactory as gf
-from gdsfactory.typings import LayerSpec, ComponentSpec
+from gdsfactory.typings import ComponentSpec, LayerSpec
 
 
 @gf.cell
@@ -13,7 +14,8 @@ def layer_priority(
 ) -> gf.Component:
     """Returns new component after removing one layer from another.
 
-    Arguments:
+    Args:
+        component: spec.
         layer_high_order: layer used to etch.
         layer_low_order: layer etched into.
         remove_high_order: whether to also remove the high order layer polygons.
@@ -21,6 +23,8 @@ def layer_priority(
         kwargs: keyword arguments for boolean difference operation.
     """
     c = gf.Component()
+
+    component = gf.get_component(component)
 
     # Obtain component subsets
     layers_to_remove = (

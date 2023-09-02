@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-from typing import Dict, List, Tuple
 
 from numpy import float64
 
@@ -137,7 +136,7 @@ def component_lattice(
         CXX
         C-X
         """,
-    symbol_to_component: Dict[str, Component] = None,
+    symbol_to_component: dict[str, Component] | None = None,
     grid_per_unit: int = 1000,
 ) -> Component:
     """Return a lattice Component of N inputs and outputs Columns must have.
@@ -262,8 +261,8 @@ def component_lattice(
 
 
 def parse_lattice(
-    lattice: str, symbol_to_component: Dict[str, Component]
-) -> Tuple[Dict[int, List[str]], Dict[int, float64]]:
+    lattice: str, symbol_to_component: dict[str, Component]
+) -> tuple[dict[int, list[str]], dict[int, float64]]:
     """Extract each column.
 
     Args:
@@ -294,14 +293,16 @@ def parse_lattice(
 
 
 if __name__ == "__main__":
-    components_dict = {
-        "C": gf.routing.fanout2x2(component=gf.components.coupler(), port_spacing=40.0),
-        "X": crossing45(port_spacing=40.0),
-        "-": compensation_path(crossing45=crossing45(port_spacing=40.0)),
-    }
-    c = gf.components.component_lattice(symbol_to_component=components_dict)
+    # components_dict = {
+    #     "C": gf.routing.fanout2x2(component=gf.components.coupler(), port_spacing=40.0),
+    #     "X": crossing45(port_spacing=40.0),
+    #     "-": compensation_path(crossing45=crossing45(port_spacing=40.0)),
+    # }
+    # c = gf.components.component_lattice(symbol_to_component=components_dict)
     # c= gf.routing.fanout2x2(component=gf.components.coupler(), port_spacing=40.0)
     # c= crossing45(port_spacing=40.0)
     # c = compensation_path(crossing45=crossing45(port_spacing=40.0))
-    c.pprint_ports()
+    # c.pprint_ports()
+    # c = compensation_path()
+    c = component_lattice()
     c.show(show_ports=True)

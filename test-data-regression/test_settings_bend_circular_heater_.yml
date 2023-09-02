@@ -1,0 +1,53 @@
+name: bend_circular_heater
+ports:
+  in:
+    center:
+    - 0.0
+    - 0.0
+    layer:
+    - 1
+    - 0
+    name: in
+    orientation: 180
+    port_type: optical
+    shear_angle: null
+    width: 0.5
+  out:
+    center:
+    - 10.0
+    - 10.0
+    layer:
+    - 1
+    - 0
+    name: out
+    orientation: 90
+    port_type: optical
+    shear_angle: null
+    width: 0.5
+settings:
+  changed: {}
+  child: null
+  default:
+    angle: 90
+    cross_section: strip
+    heater_to_wg_distance: 1.2
+    heater_width: 0.5
+    layer_heater: HEATER
+    npoints: null
+    radius: 10
+    with_bbox: true
+  full:
+    angle: 90
+    cross_section: strip
+    heater_to_wg_distance: 1.2
+    heater_width: 0.5
+    layer_heater: HEATER
+    npoints: null
+    radius: 10
+    with_bbox: true
+  function_name: bend_circular_heater
+  info:
+    length: 15.708
+  info_version: 2
+  module: gdsfactory.components.bend_circular_heater
+  name: bend_circular_heater

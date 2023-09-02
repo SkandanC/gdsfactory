@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-from typing import Tuple
-
 import gdsfactory as gf
 from gdsfactory.cell import cell
 from gdsfactory.component import Component
-from gdsfactory.components.straight import straight
+from gdsfactory.typings import ComponentSpec, Float2
 
 
 @cell
 def array(
-    component: gf.typings.ComponentSpec = straight,
-    spacing: Tuple[float, float] = (150.0, 150.0),
+    component: ComponentSpec = "pad",
+    spacing: tuple[float, float] = (150.0, 150.0),
     columns: int = 6,
     rows: int = 1,
     add_ports: bool = True,
+    size: Float2 | None = None,
 ) -> Component:
     """Returns an array of components.
 
@@ -24,6 +23,7 @@ def array(
         columns: in x.
         rows: in y.
         add_ports: add ports from component into the array.
+        size: Optional x, y size. Overrides columns and rows.
 
     Raises:
         ValueError: If columns > 1 and spacing[0] = 0.
@@ -40,6 +40,10 @@ def array(
         |   |      |   |     |   |        |   |
         |___|      |___|     |___|        |___|
     """
+    if size:
+        columns = int(size[0] / spacing[0])
+        rows = int(size[1] / spacing[1])
+
     if rows > 1 and spacing[1] == 0:
         raise ValueError(f"rows = {rows} > 1 require spacing[1] > 0")
 
@@ -51,8 +55,8 @@ def array(
     c.add_array(component, columns=columns, rows=rows, spacing=spacing)
 
     if add_ports and component.ports:
-        for col in range(columns):
-            for row in range(rows):
+        for col in range(int(columns)):
+            for row in range(int(rows)):
                 for port in component.ports.values():
                     name = f"{port.name}_{row+1}_{col+1}"
                     c.add_port(name, port=port)
@@ -68,9 +72,10 @@ if __name__ == "__main__":
     from gdsfactory.components.pad import pad
 
     # c2 = array(rows=2, columns=2, spacing=(100, 100))
-    c2 = array(pad, rows=2, spacing=(200, 200), columns=1)
-
+    # c2 = array(pad, rows=2, spacing=(200, 200), columns=1)
     # c3 = c2.copy()
+
+    c2 = array(pad, spacing=(200, 200), size=(700, 300))
 
     # nports = len(c2.get_ports_list(orientation=0))
     # assert nports == 2, nports

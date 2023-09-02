@@ -5,7 +5,6 @@ Adapted from PHIDL https://github.com/amccaugh/phidl/ by Adam McCaughan
 from __future__ import annotations
 
 import itertools
-from typing import List, Optional, Union, Tuple
 
 import gdstk
 import numpy as np
@@ -16,7 +15,13 @@ from gdsfactory.cell import cell
 from gdsfactory.component import Component
 from gdsfactory.component_layout import _parse_layer
 from gdsfactory.components.rectangle import rectangle
-from gdsfactory.typings import Float2, Floats, LayerSpecs, ComponentSpec
+from gdsfactory.typings import (
+    ComponentOrReference,
+    ComponentSpec,
+    Float2,
+    Floats,
+    LayerSpecs,
+)
 
 
 def _loop_over(var):
@@ -34,7 +39,9 @@ def _loop_over(var):
     return var if hasattr(var, "__iter__") else [var]
 
 
-def _rasterize_polygons(polygons, bounds=([-100, -100], [100, 100]), dx=1, dy=1):
+def _rasterize_polygons(
+    polygons, bounds=([-100, -100], [100, 100]), dx: float = 1.0, dy: float = 1.0
+):
     """Converts polygons to a black/white (1/0) matrix."""
     try:
         from skimage import draw
@@ -46,6 +53,11 @@ def _rasterize_polygons(polygons, bounds=([-100, -100], [100, 100]), dx=1, dy=1)
             "$ pip install --upgrade scikit-image"
         ) from e
 
+    # Initialize the raster matrix we'll be writing to
+    xsize = int((bounds[1][0] - bounds[0][0]) // dx)
+    ysize = int((bounds[1][1] - bounds[0][1]) // dy)
+    raster = np.zeros((ysize, xsize), dtype=bool)
+
     # Prepare polygon array by shifting all points into the first quadrant and
     # separating points into x and y lists
     xpts = []
@@ -54,13 +66,8 @@ def _rasterize_polygons(polygons, bounds=([-100, -100], [100, 100]), dx=1, dy=1)
         p_array = np.asarray(p)
         x = p_array[:, 0]
         y = p_array[:, 1]
-        xpts.append((x - bounds[0][0]) / dx - 0.5)
-        ypts.append((y - bounds[0][1]) / dy - 0.5)
-
-    # Initialize the raster matrix we'll be writing to
-    xsize = int(np.ceil(bounds[1][0] - bounds[0][0]) / dx)
-    ysize = int(np.ceil(bounds[1][1] - bounds[0][1]) / dy)
-    raster = np.zeros((ysize, xsize), dtype=bool)
+        xpts.append((x - (bounds[1][0] + bounds[0][0] - (xsize - 1) * dx) / 2) / dx)
+        ypts.append((y - (bounds[1][1] + bounds[0][1] - (ysize - 1) * dy) / 2) / dy)
 
     # TODO: Replace polygon_perimeter with the supercover version
     for n in range(len(xpts)):
@@ -74,14 +81,18 @@ def _rasterize_polygons(polygons, bounds=([-100, -100], [100, 100]), dx=1, dy=1)
     return raster
 
 
-def _raster_index_to_coords(i, j, bounds=([-100, -100], [100, 100]), dx=1, dy=1):
+def _raster_index_to_coords(
+    i, j, bounds=([-100, -100], [100, 100]), dx: float = 1, dy: float = 1
+):
     """Converts (i,j) index of raster matrix to real coordinates."""
-    x = (j + 0.5) * dx + bounds[0][0]
-    y = (i + 0.5) * dy + bounds[0][1]
+    xsize = int((bounds[1][0] - bounds[0][0]) // dx)
+    ysize = int((bounds[1][1] - bounds[0][1]) // dy)
+    x = j * dx + (bounds[1][0] + bounds[0][0] - (xsize - 1) * dx) / 2
+    y = i * dy + (bounds[1][1] + bounds[0][1] - (ysize - 1) * dy) / 2
     return x, y
 
 
-def _expand_raster(raster, distance=(4, 2)):
+def _expand_raster(raster, distance: tuple[float, float] = (4, 2)):
     """Expands all black (1) pixels in the raster."""
     try:
         from skimage import draw, morphology
@@ -130,12 +141,12 @@ def fill_cell_rectangle(
     for layer, density, inv in zip(layers, densities, inverted):
         rectangle_size = np.array(size) * sqrt(density)
         # r = D.add_ref(rectangle(size = rectangle_size, layer = layer))
-        R = rectangle(size=tuple(rectangle_size), layer=layer, port_type=None)
-        R.center = (0, 0)
+        R = rectangle(
+            size=tuple(rectangle_size), layer=layer, port_type=None, centered=True
+        )
 
         if inv is True:
-            A = rectangle(size=size)
-            A.center = (0, 0)
+            A = rectangle(size=size, centered=True)
             A = A.get_polygons()
             B = R.get_polygons()
             p = gdstk.boolean(A, B, operation="not")
@@ -147,15 +158,15 @@ def fill_cell_rectangle(
 
 @cell
 def fill_rectangle(
-    component: Component,
+    component: ComponentOrReference,
     fill_layers: LayerSpecs,
     fill_size=(5.0, 5.0),
-    avoid_layers: LayerSpecs = None,
-    include_layers: LayerSpecs = None,
+    avoid_layers: LayerSpecs | None = None,
+    include_layers: LayerSpecs | None = None,
     margin: float = 5.0,
-    fill_densities: Union[float, Floats] = (0.5, 0.25, 0.7),
-    fill_inverted: Optional[List[float]] = None,
-    bbox: Optional[object] = None,
+    fill_densities: float | Floats = (0.5, 0.25, 0.7),
+    fill_inverted: list[float] | None = None,
+    bbox: object | None = None,
 ) -> Component:
     """Returns rectangular fill pattern and fills all empty areas.
 
@@ -254,10 +265,10 @@ def fill_rectangle(
 def fill_rectangle_custom(
     component: Component,
     fill_cell: ComponentSpec,
-    spacing: Tuple[float, float],
-    avoid_layers: LayerSpecs = None,
+    spacing: tuple[float, float],
+    avoid_layers: LayerSpecs | None = None,
     margin: float = 5.0,
-    bbox: Optional[object] = None,
+    bbox: object | None = None,
 ) -> Component:
     """Returns custom fill pattern to fill all empty areas.
 
@@ -312,13 +323,12 @@ def fill_rectangle_custom(
     return F
 
 
-def test_fill():
-    import gdsfactory as gf
+def test_fill() -> None:
     from gdsfactory.difftest import difftest
 
     c = gf.Component("test_fill")
     wg = c << gf.components.straight()
-    c << gf.add_padding_container(wg.parent, default=15)
+    _ = c << gf.add_padding_container(wg.parent, default=15)
     fill = fill_rectangle(
         c,
         fill_layers=((2, 0),),
@@ -327,37 +337,23 @@ def test_fill():
         avoid_layers=((1, 0),),
         # bbox=(100.0, 100.0),
     )
-    c << fill
-    difftest(c)
-    return c
+    _ = c << fill
+    difftest(c, test_name="fill")
 
 
 if __name__ == "__main__":
-    # c = test_fill()
+    test_fill()
 
-    mzi = gf.components.mzi()
-    c = gf.Component("component_with_fill")
-    layers = [(1, 0)]
-
-    # c << fill_rectangle(
-    #     mzi,
-    #     fill_size=(0.5, 0.5),
-    #     fill_layers=layers,
-    #     margin=5,
-    #     fill_densities=[0.8] * len(layers),
-    #     avoid_layers=layers,
+    # c = gf.Component("test_fill")
+    # wg = c << gf.components.straight()
+    # _ = c << gf.add_padding_container(wg.parent, default=15)
+    # fill = fill_rectangle(
+    #     c,
+    #     fill_layers=((2, 0),),
+    #     fill_densities=(1.0,),
+    #     # fill_densities=0.5,
+    #     avoid_layers=((1, 0),),
+    #     # bbox=(100.0, 100.0),
     # )
-
-    # bbox = tuple(map(tuple, mzi.bbox))
-    # bbox = mzi.bbox
-
-    c << fill_rectangle_custom(
-        mzi,
-        gf.components.rectangle(),
-        avoid_layers=layers,
-        margin=5,
-        spacing=(10, 10),
-        bbox=mzi.bbox,
-    )
-    c << mzi
-    c.show(show_ports=True)
+    # _ = c << fill
+    # c.show()

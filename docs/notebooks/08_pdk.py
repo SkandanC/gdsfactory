@@ -1,32 +1,16 @@
-# ---
-# jupyter:
-#   jupytext:
-#     custom_cell_magics: kql
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.11.2
-#   kernelspec:
-#     display_name: Python 3 (ipykernel)
-#     language: python
-#     name: python3
-# ---
-
-# %% [markdown]
 # # PDK
 #
-# gdsfactory includes a generic PDK, that you can use as an inspiration to create your own.
+# gdsfactory includes a generic Process Design Kit (PDK), that you can use as an inspiration to create your own.
 #
-# What is a PDK? PDK stands for process design kit. It includes:
+# A process design kit (PDK) includes:
 #
-# 1. LayerStack: different layers with different thickness that come from a process.
-# 2. DRC: Manufacturing rules.
-# 3. A library of components. You can also use Parametric cell functions to generate components with different parameters.
+# 1. LayerStack: different layers with different thickness, z-position, materials and colors.
+# 2. Design rule checking deck DRC: Manufacturing rules capturing min feature size, min spacing ... for the process.
+# 3. A library of Fixed or Parametric cells.
 #
 # The PDK allows you to register:
 #
-# - `cell` functions that return Components from a ComponentSpec (string, Component, ComponentFactory or dict). Also known as parametric cell functions.
+# - `cell` parametric cells that return Components from a ComponentSpec (string, Component, ComponentFactory or dict). Also known as parametric cell functions.
 # - `cross_section` functions that return CrossSection from a CrossSection Spec (string, CrossSection, CrossSectionFactory or dict).
 # - `layers` that return a GDS Layer (gdslayer, gdspurpose) from a string, an int or a Tuple[int, int].
 #
@@ -36,10 +20,9 @@
 # Depending on the active pdk:
 #
 # - `get_layer` returns a Layer from the registered layers.
-# - `get_component` returns a Component from the registered cells or containers.
+# - `get_component` returns a Component from the registered cells.
 # - `get_cross_section` returns a CrossSection from the registered cross_sections.
 
-# %% [markdown]
 # ## layers
 #
 # GDS layers are a tuple of two integer number `gdslayer/gdspurpose`
@@ -52,32 +35,25 @@
 #
 # Lets generate the layers definition code from a KLayout `lyp` file.
 
-# %% tags=[]
+# +
 import pathlib
-from typing import Callable, Tuple
+from functools import partial
 
 import pytest
 from pydantic import BaseModel
 from pytest_regressions.data_regression import DataRegressionFixture
 
-from gdsfactory.add_pins import add_pin_rectangle_inside
+import gdsfactory as gf
 from gdsfactory.component import Component
 from gdsfactory.config import PATH
-from gdsfactory.cross_section import cross_section
-from gdsfactory.decorators import flatten_invalid_refs, has_valid_transformations
+from gdsfactory.decorators import has_valid_transformations
 from gdsfactory.difftest import difftest
 from gdsfactory.generic_tech import get_generic_pdk
 from gdsfactory.technology import (
-    LayerLevel,
-    LayerStack,
-    LayerView,
     LayerViews,
     lyp_to_dataclass,
 )
 from gdsfactory.typings import Layer, LayerSpec
-
-import gdsfactory as gf
-from gdsfactory.generic_tech import get_generic_pdk
 
 gf.config.rich_output()
 PDK = get_generic_pdk()
@@ -88,7 +64,7 @@ nm = 1e-3
 print(lyp_to_dataclass(PATH.klayout_lyp))
 
 
-# %% tags=[]
+# +
 class LayerMap(BaseModel):
     WG: Layer = (1, 0)
     DEVREC: Layer = (68, 0)
@@ -129,7 +105,7 @@ class LayerMap(BaseModel):
     VIAC: Layer = (40, 0)
     WGCLAD: Layer = (111, 0)
     WGN: Layer = (34, 0)
-    WGNCLAD: Layer = (36, 0)
+    WGclad_material: Layer = (36, 0)
 
     class Config:
         frozen = True
@@ -137,8 +113,8 @@ class LayerMap(BaseModel):
 
 
 LAYER = LayerMap()
+# -
 
-# %% [markdown]
 # There are some default layers in some generic components and cross_sections, that it may be convenient adding.
 #
 # | Layer          | Purpose                                                      |
@@ -164,45 +140,36 @@ LAYER = LayerMap()
 #     LABEL_INSTANCE: Layer = (66, 0)
 #     TE: Layer = (203, 0)
 #     TM: Layer = (204, 0)
-#
 # ```
 
-# %% [markdown]
 # ## cross_sections
 #
 # You can create a `CrossSection` from scratch or you can customize the cross_section functions in `gf.cross_section`
 
-# %% tags=[]
-strip2 = gf.partial(gf.cross_section.strip, layer=(2, 0))
+strip2 = partial(gf.cross_section.strip, layer=(2, 0))
 
-# %% tags=[]
 c = gf.components.straight(cross_section=strip2)
-c
+c.plot()
 
-# %% tags=[]
-pin = gf.partial(
+pin = partial(
     gf.cross_section.strip,
     sections=(
-        gf.Section(width=2, layer=gf.LAYER.N, offset=+1),
-        gf.Section(width=2, layer=gf.LAYER.P, offset=-1),
+        gf.Section(width=2, layer=(20, 0), offset=+1),
+        gf.Section(width=2, layer=(21, 0), offset=-1),
     ),
 )
 c = gf.components.straight(cross_section=pin)
-c
+c.plot()
 
-# %% tags=[]
-strip_wide = gf.partial(gf.cross_section.strip, width=3)
+strip_wide = partial(gf.cross_section.strip, width=3)
 
 
-# %% tags=[]
-strip = gf.partial(
+strip = partial(
     gf.cross_section.strip, auto_widen=True
 )  # auto_widen tapers to wider waveguides for lower loss in long straight sections.
 
-# %% tags=[]
 cross_sections = dict(strip_wide=strip_wide, pin=pin, strip=strip)
 
-# %% [markdown]
 # ## cells
 #
 # Cells are functions that return Components. They are parametrized and accept also cells as parameters, so you can build many levels of complexity. Cells are also known as PCells or parametric cells.
@@ -212,13 +179,13 @@ cross_sections = dict(strip_wide=strip_wide, pin=pin, strip=strip)
 #
 # For example, you can make some wide MMIs for a particular technology. Lets say the best MMI width you found it to be 9um.
 
-# %% tags=[]
-mmi1x2 = gf.partial(gf.components.mmi1x2, width_mmi=9)
-mmi2x2 = gf.partial(gf.components.mmi2x2, width_mmi=9)
+# +
+mmi1x2 = partial(gf.components.mmi1x2, width_mmi=9)
+mmi2x2 = partial(gf.components.mmi2x2, width_mmi=9)
 
 cells = dict(mmi1x2=mmi1x2, mmi2x2=mmi2x2)
+# -
 
-# %% [markdown]
 # ## PDK
 #
 # You can register Layers, ComponentFactories (Parametric cells) and CrossSectionFactories (cross_sections) into a PDK.
@@ -228,14 +195,14 @@ cells = dict(mmi1x2=mmi1x2, mmi2x2=mmi2x2)
 #
 # You can access layers from the active Pdk using the layer name or a tuple/list of two numbers.
 
-# %% tags=[]
+# +
 from gdsfactory.generic_tech import get_generic_pdk
 
 generic_pdk = get_generic_pdk()
 
 pdk1 = gf.Pdk(
     name="fab1",
-    layers=LAYER.dict(),
+    layers=dict(LAYER),
     cross_sections=cross_sections,
     cells=cells,
     base_pdk=generic_pdk,
@@ -243,43 +210,34 @@ pdk1 = gf.Pdk(
     layer_views=generic_pdk.layer_views,
 )
 pdk1.activate()
+# -
 
-# %% tags=[]
 pdk1.get_layer("WG")
 
-# %% tags=[]
 pdk1.get_layer([1, 0])
 
-# %% [markdown]
 # ### CrossSectionSpec
 #
 # You can access cross_sections from the pdk from the cross_section name, or using a dict to customize the CrossSection
 
-# %% tags=[]
 pdk1.get_cross_section("pin")
 
-# %% tags=[]
 cross_section_spec_string = "pin"
 gf.components.straight(cross_section=cross_section_spec_string)
 
-# %% tags=[]
 cross_section_spec_dict = dict(cross_section="pin", settings=dict(width=2))
 print(pdk1.get_cross_section(cross_section_spec_dict))
 wg_pin = gf.components.straight(cross_section=cross_section_spec_dict)
 wg_pin
 
-# %% [markdown]
 # ### ComponentSpec
 #
 # You can get Component from the active pdk using the cell name (string) or a dict.
 
-# %% tags=[]
 pdk1.get_component("mmi1x2")
 
-# %% tags=[]
 pdk1.get_component(dict(component="mmi1x2", settings=dict(length_mmi=10)))
 
-# %% [markdown]
 # ## Testing PDK cells
 #
 # To make sure all your PDK PCells produce the components that you want, it's important to test your PDK cells.
@@ -292,12 +250,12 @@ pdk1.get_component(dict(component="mmi1x2", settings=dict(length_mmi=10)))
 #
 # gdsfactory is **not** backwards compatible, which means that the package will keep improving and evolving.
 #
-# 1. To make your work stable you should install a specific version and [pin the version](https://martin-thoma.com/python-requirements/) in your `requirements.txt` or `pyproject.toml` as `gdsfactory==6.61.0` replacing `6.61.0` by whatever version you end up using.
+# 1. To make your work stable you should install a specific version and [pin the version](https://martin-thoma.com/python-requirements/) in your `requirements.txt` or `pyproject.toml` as `gdsfactory==7.4.3` replacing `7.4.3` by whatever version you end up using.
 # 2. Before you upgrade gdsfactory to a newer version make sure your tests pass to make sure that things behave as expected
 #
 #
 
-# %% tags=[]
+# +
 """This code tests all your cells in the PDK
 
 it will test 3 things:
@@ -343,31 +301,31 @@ def test_assert_ports_on_grid(component_name: str):
     component.assert_ports_on_grid()
 
 
-# %% [markdown]
+# -
+
 # ## Compare gds files
 #
 # You can use the command line `gf gds diff gds1.gds gds2.gds` to overlay `gds1.gds` and `gds2.gds` files and show them in KLayout.
 #
 # For example, if you changed the mmi1x2 and made it 5um longer by mistake, you could `gf gds diff ref_layouts/mmi1x2.gds run_layouts/mmi1x2.gds` and see the GDS differences in Klayout.
 
-# %%
-from gdsfactory.gdsdiff import gdsdiff
+help(gf.diff)
 
-help(gdsdiff)
-
-# %%
 mmi1 = gf.components.mmi1x2(length_mmi=5)
 mmi2 = gf.components.mmi1x2(length_mmi=6)
-c = gdsdiff(mmi1, mmi2)
-c
+gds1 = mmi1.write_gds()
+gds2 = mmi2.write_gds()
+gf.diff(gds1, gds2)
 
-# %% [markdown]
 # ## PDK decorator
 #
 # You can also define a PDK decorator (function) that runs over every PDK PCell.
 
-# %%
+# +
 from gdsfactory.add_pins import add_pins_siepic
+from gdsfactory.technology import LayerViews
+
+LAYER_VIEWS = LayerViews(filepath=PATH.klayout_yaml)
 
 
 def add_pins_bbox_siepic(
@@ -404,10 +362,10 @@ pdk = gf.Pdk(
     name="fab_c",
     cells=cells,
     cross_sections=cross_sections,
-    layers=LAYER.dict(),
+    layers=dict(LAYER),
     sparameters_path=gf.config.sparameters_path,
     layer_views=LAYER_VIEWS,
-    layer_stack=LAYER_STACK,
+    # layer_stack=LAYER_STACK,
     # default_decorator=add_pins_bbox_siepic
 )
 pdk.activate()
@@ -416,15 +374,15 @@ c1 = gf.components.straight(length=5)
 print(has_valid_transformations(c1))
 c1.layers
 
-# %%
+# +
 pdk = gf.Pdk(
     name="fab_c",
     cells=cells,
     cross_sections=cross_sections,
-    layers=LAYER.dict(),
+    layers=dict(LAYER),
     sparameters_path=gf.config.sparameters_path,
     layer_views=LAYER_VIEWS,
-    layer_stack=LAYER_STACK,
+    # layer_stack=LAYER_STACK,
     default_decorator=add_pins_bbox_siepic,
 )
 pdk.activate()
@@ -432,22 +390,22 @@ pdk.activate()
 c1 = gf.components.straight(length=5)
 print(has_valid_transformations(c1))
 c1.layers
+c1
+# -
 
-# %% [markdown]
-# if you zoom in you will see a device recognition layer and pins.
-#
-# ![devrec](https://i.imgur.com/U9IPOei.png)
+# You can see a waveguide with device recognition layer and pins.
 #
 
-# %% [markdown]
 # ## Version control components
 #
 # For version control your component library you can use GIT
 #
 # For tracking changes you can add `Component` changelog in the PCell docstring.
 
-# %%
+# +
+import gdsfactory as gf
 from gdsfactory.generic_tech import get_generic_pdk
+from gdsfactory.typings import LayerSpec
 
 PDK = get_generic_pdk()
 PDK.activate()
@@ -458,7 +416,7 @@ def litho_ruler(
     height: float = 2,
     width: float = 0.5,
     spacing: float = 2.0,
-    scale: Tuple[float, ...] = (3, 1, 1, 1, 1, 2, 1, 1, 1, 1),
+    scale: tuple[float, ...] = (3, 1, 1, 1, 1, 2, 1, 1, 1, 1),
     num_marks: int = 21,
     layer: LayerSpec = (1, 0),
 ) -> gf.Component:
@@ -484,21 +442,22 @@ def litho_ruler(
     return D
 
 
-c = litho_ruler(cache=False)
+c = litho_ruler()
 c.plot()
+# -
 
-# %% [markdown]
 # Lets assume that later on you change the code inside the PCell and want to keep a changelog.
 # You can use the docstring Notes to document any significant changes in the component.
+#
 
 
-# %%
+# +
 @gf.cell
 def litho_ruler(
     height: float = 2,
     width: float = 0.5,
     spacing: float = 2.0,
-    scale: Tuple[float, ...] = (3, 1, 1, 1, 1, 2, 1, 1, 1, 1),
+    scale: tuple[float, ...] = (3, 1, 1, 1, 1, 2, 1, 1, 1, 1),
     num_marks: int = 21,
     layer: LayerSpec = (1, 0),
 ) -> gf.Component:

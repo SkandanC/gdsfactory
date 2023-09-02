@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import gdsfactory as gf
-from gdsfactory.add_labels import get_input_label_text_loopback
+from gdsfactory.add_labels import (
+    get_input_label_text_dash,
+    get_input_label_text_dash_loopback,
+    get_input_label_text_loopback,
+)
 from gdsfactory.cell import cell
 from gdsfactory.component import Component
 from gdsfactory.components.bend_euler import bend_euler
@@ -21,7 +25,7 @@ from gdsfactory.typings import ComponentSpec, CrossSectionSpec, LayerSpec
 def add_fiber_single(
     component: ComponentSpec = straight_function,
     grating_coupler=grating_coupler_te,
-    layer_label: LayerSpec = "LABEL",
+    layer_label: LayerSpec | None = "LABEL",
     fiber_spacing: float = 50,
     bend: ComponentSpec = bend_euler,
     straight: ComponentSpec = straight_function,
@@ -30,11 +34,12 @@ def add_fiber_single(
     optical_routing_type: int = 2,
     with_loopback: bool = True,
     loopback_xspacing: float = 50.0,
-    component_name: Optional[str] = None,
+    component_name: str | None = None,
     gc_port_name: str = "o1",
-    zero_port: Optional[str] = "o1",
-    get_input_label_text_loopback_function: Optional[Callable] = None,
-    get_input_label_text_function: Optional[Callable] = None,
+    zero_port: str | None = "o1",
+    get_input_label_text_loopback_function: None
+    | (Callable) = get_input_label_text_dash_loopback,
+    get_input_label_text_function: Callable | None = get_input_label_text_dash,
     select_ports: Callable = select_ports_optical,
     cross_section: CrossSectionSpec = "strip",
     **kwargs,
@@ -136,13 +141,20 @@ def add_fiber_single(
 
     gc = (
         grating_coupler[0]
-        if isinstance(grating_coupler, (list, tuple))
+        if isinstance(grating_coupler, list | tuple)
         else grating_coupler
     )
     gc = gf.get_component(gc)
 
     if gc_port_name not in gc.ports:
         raise ValueError(f"{gc_port_name!r} not in {list(gc.ports.keys())}")
+
+    gc_port_orientation = int(gc.ports[gc_port_name].orientation)
+
+    if gc_port_orientation != 180:
+        raise ValueError(
+            f"{gc_port_name!r} orientation {gc_port_orientation} needs to be 180 deg."
+        )
 
     gc_port_to_edge = abs(gc.xmax - gc.ports[gc_port_name].center[0])
 
@@ -169,7 +181,7 @@ def add_fiber_single(
                 gc_ref.connect(gc_port_name, port)
                 grating_couplers.append(gc_ref)
 
-        if get_input_label_text_function:
+        if get_input_label_text_function and layer_label:
             elements = get_input_labels(
                 io_gratings=grating_couplers,
                 ordered_ports=list(cr.ports.values()),
@@ -238,7 +250,11 @@ def add_fiber_single(
 
         c.add_port(name=f"{pname}-{component_name}-loopback1", port=gci.ports[pname])
         c.add_port(name=f"{pname}-{component_name}-loopback2", port=gco.ports[pname])
-        if get_input_label_text_function and get_input_label_text_loopback_function:
+        if (
+            layer_label
+            and get_input_label_text_function
+            and get_input_label_text_loopback_function
+        ):
             text = get_input_label_text_loopback_function(
                 port=port, gc=gc, gc_index=0, component_name=component_name
             )
@@ -270,6 +286,14 @@ if __name__ == "__main__":
     # from gdsfactory.samples.big_device import big_device
     # w = h = 18 * 50
     # c = big_device(spacing=50.0, size=(w, h))
+    # gc = gf.functions.rotate90(gf.components.grating_coupler_elliptical_arbitrary)
+
+    gc = gf.components.grating_coupler_elliptical_arbitrary
     c = gf.c.mmi2x2()
-    cc = gf.routing.add_fiber_single(component=c)
-    cc.show(show_ports=True)
+    cc = gf.routing.add_fiber_single(
+        component=c,
+        grating_coupler=gc,
+        # layer_label="TEXT"
+        # layer_label=None,
+    )
+    cc.show(show_ports=False)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Optional, Tuple
 
 from gdsfactory.component import Component
 from gdsfactory.technology import LayerStack
@@ -11,17 +10,18 @@ from gdsfactory.typings import Layer
 def to_stl(
     component: Component,
     filepath: str,
-    layer_stack: Optional[LayerStack] = None,
-    exclude_layers: Optional[Tuple[Layer, ...]] = None,
+    layer_stack: LayerStack | None = None,
+    exclude_layers: tuple[Layer, ...] | None = None,
     use_layer_name: bool = False,
     hull_invalid_polygons: bool = True,
-    scale: Optional[float] = None,
+    scale: float | None = None,
 ) -> None:
     """Exports a Component into STL.
 
     Args:
         component: to export.
-        filepath: to write STL to.
+        filepath: filepath prefix to write STL to.
+            Each file will have each exported layer as suffix.
         layer_stack: contains thickness and zmin for each layer.
         exclude_layers: layers to exclude.
         use_layer_name: If True, uses LayerLevel names in output filenames rather than gds_layer and gds_datatype.
@@ -31,6 +31,7 @@ def to_stl(
     """
     import shapely
     import trimesh.creation
+
     from gdsfactory.pdk import get_layer_stack
 
     layer_stack = layer_stack or get_layer_stack()
@@ -44,6 +45,7 @@ def to_stl(
     component_layers = component_with_booleans.get_layers()
     layer_names = list(layer_stack.layers.keys())
     layer_tuples = list(layer_stack.layers.values())
+
     for layer, polygons in component_with_booleans.get_polygons(by_spec=True).items():
         if (
             layer in exclude_layers

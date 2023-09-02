@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import List, Optional
-
 from gdsfactory.cell import cell
 from gdsfactory.component import Component
 from gdsfactory.port import Port
@@ -10,10 +8,10 @@ from gdsfactory.typings import ComponentSpec, Strs
 
 @cell
 def extend_ports_list(
-    ports: List[Port],
+    ports: list[Port],
     extension: ComponentSpec,
-    extension_port_name: Optional[str] = None,
-    ignore_ports: Optional[Strs] = None,
+    extension_port_name: str | None = None,
+    ignore_ports: Strs | None = None,
 ) -> Component:
     """Returns a component with the extensions for a list of ports.
 
@@ -29,7 +27,7 @@ def extend_ports_list(
     extension = get_component(extension)
 
     extension_port_name = extension_port_name or list(extension.ports.keys())[0]
-    ignore_ports = ignore_ports or []
+    ignore_ports = ignore_ports or ()
 
     for i, port in enumerate(ports):
         extension_ref = c << extension
@@ -55,7 +53,7 @@ if __name__ == "__main__":
 
     # c = gf.Component("mmi_extended")
     # m = gf.components.mmi1x2()
-    # t = gf.partial(gf.components.taper, width2=0.1)
+    # t = partial(gf.components.taper, width2=0.1)
     # e = extend_ports_list(
     #     ports=m.get_ports_list(), extension=t, extension_port_name="o1"
     # )

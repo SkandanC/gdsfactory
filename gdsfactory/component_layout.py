@@ -6,11 +6,11 @@ from __future__ import annotations
 
 import numbers
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from gdstk import Polygon
+import shapely as sp
 from gdstk import Label as _Label
+from gdstk import Polygon
 from numpy import cos, pi, sin
 from numpy.linalg import norm
 
@@ -22,11 +22,13 @@ class Label(_Label):
 
 def get_polygons(
     instance,
-    by_spec: Union[bool, Tuple[int, int]] = False,
-    depth: Optional[int] = None,
+    by_spec: bool | tuple[int, int] = False,
+    depth: int | None = None,
     include_paths: bool = True,
     as_array: bool = True,
-) -> Union[List[Polygon], Dict[Tuple[int, int], List[Polygon]]]:
+    as_shapely: bool = False,
+    as_shapely_merged: bool = False,
+) -> list[Polygon] | dict[tuple[int, int], list[Polygon]]:
     """Return a list of polygons in this cell.
 
     Args:
@@ -43,6 +45,7 @@ def get_polygons(
         include_paths: If True, polygonal representation of paths are also included in the result.
         as_array: when as_array=false, return the Polygon objects instead.
             polygon objects have more information (especially when by_spec=False) and are faster to retrieve.
+        as_shapely: returns shapely polygons.
 
     Returns
         out: list of array-like[N][2] or dictionary
@@ -89,7 +92,17 @@ def get_polygons(
 
     if not as_array:
         return polygons
-    if by_spec is not True:
+    elif as_shapely_merged:
+        polygons = [sp.Polygon(polygon.points) for polygon in polygons]
+        p = sp.Polygon()
+        for polygon in polygons:
+            p = p | polygon
+        return p
+
+    elif as_shapely:
+        return [sp.Polygon(polygon.points) for polygon in polygons]
+
+    elif by_spec is not True:
         return [polygon.points for polygon in polygons]
     layer_to_polygons = defaultdict(list)
     for layer, polygons_list in polygons.items():
@@ -125,6 +138,10 @@ def _parse_layer(layer):
             that could not be interpreted as a layer: layer = %s"""
             % layer
         )
+    if not isinstance(gds_layer, int):
+        raise ValueError(f"invalid layer {layer}")
+    if not isinstance(gds_datatype, int):
+        raise ValueError(f"invalid layer {layer}")
     return (gds_layer, gds_datatype)
 
 
@@ -142,7 +159,7 @@ class _GeometryHelper:
         return np.sum(self.bbox, 0) / 2
 
     @center.setter
-    def center(self, destination):
+    def center(self, destination) -> None:
         """Sets the center of the bounding box.
 
         Args:
@@ -156,7 +173,7 @@ class _GeometryHelper:
         return np.sum(self.bbox, 0)[0] / 2
 
     @x.setter
-    def x(self, destination):
+    def x(self, destination) -> None:
         """Sets the x-coordinate of the center of the bounding box.
 
         Args:
@@ -171,7 +188,7 @@ class _GeometryHelper:
         return np.sum(self.bbox, 0)[1] / 2
 
     @y.setter
-    def y(self, destination):
+    def y(self, destination) -> None:
         """Sets the y-coordinate of the center of the bounding box.
 
         Args:
@@ -187,7 +204,7 @@ class _GeometryHelper:
         return self.bbox[1][0]
 
     @xmax.setter
-    def xmax(self, destination):
+    def xmax(self, destination) -> None:
         """Sets the x-coordinate of the maximum edge of the bounding box.
 
         Args:
@@ -202,7 +219,7 @@ class _GeometryHelper:
         return self.bbox[1][1]
 
     @ymax.setter
-    def ymax(self, destination):
+    def ymax(self, destination) -> None:
         """Sets the y-coordinate of the maximum edge of the bounding box.
 
         Args:
@@ -216,7 +233,7 @@ class _GeometryHelper:
         return self.bbox[0][0]
 
     @xmin.setter
-    def xmin(self, destination):
+    def xmin(self, destination) -> None:
         """Sets the x-coordinate of the minimum edge of the bounding box.
 
         Args:
@@ -230,7 +247,7 @@ class _GeometryHelper:
         return self.bbox[0][1]
 
     @ymin.setter
-    def ymin(self, destination):
+    def ymin(self, destination) -> None:
         """Sets the y-coordinate of the minimum edge of the bounding box.
 
         Args:
@@ -280,7 +297,7 @@ class _GeometryHelper:
             origin = 0
         return self.move(origin=(0, origin), destination=(0, destination))
 
-    def __add__(self, element):
+    def __add__(self, element) -> Group:
         """Adds an element to a Group.
 
         Args:
@@ -300,7 +317,7 @@ class Group(_GeometryHelper):
     """Group objects together so you can manipulate them as a single object \
             (move/rotate/mirror)."""
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         """Initialize Group."""
         self.elements = []
         self.add(args)
@@ -353,7 +370,7 @@ class Group(_GeometryHelper):
         elif element is None:
             return self
         elif isinstance(
-            element, (Component, ComponentReference, Polygon, Label, Group)
+            element, Component | ComponentReference | Polygon | Label | Group
         ):
             self.elements.append(element)
         else:
@@ -488,6 +505,8 @@ def _rotate_points(points, angle: float = 45, center=(0, 0)):
 def _reflect_points(points, p1=(0, 0), p2=(1, 0)):
     """Reflects points across the line formed by p1 and p2.
 
+    from https://github.com/amccaugh/phidl/pull/181
+
     ``points`` may be input as either single points [1,2] or array-like[N][2],
     and will return in kind.
 
@@ -502,23 +521,19 @@ def _reflect_points(points, p1=(0, 0), p2=(1, 0)):
     Returns:
         A new set of points that are reflected across ``p1`` and ``p2``.
     """
-    # From http://math.stackexchange.com/questions/11515/point-reflection-across-a-line
-    points = np.array(points)
-    p1 = np.array(p1)
-    p2 = np.array(p2)
-    if np.asarray(points).ndim == 1:
-        return (
-            2 * (p1 + (p2 - p1) * np.dot((p2 - p1), (points - p1)) / norm(p2 - p1) ** 2)
-            - points
-        )
-    if np.asarray(points).ndim == 2:
-        return np.array(
-            [
-                2 * (p1 + (p2 - p1) * np.dot((p2 - p1), (p - p1)) / norm(p2 - p1) ** 2)
-                - p
-                for p in points
-            ]
-        )
+    original_shape = np.shape(points)
+    points = np.atleast_2d(points)
+    p1 = np.asarray(p1)
+    p2 = np.asarray(p2)
+
+    line_vec = p2 - p1
+    line_vec_norm = norm(line_vec) ** 2
+
+    # Compute reflection
+    proj = np.sum(line_vec * (points - p1), axis=-1, keepdims=True)
+    reflected_points = 2 * (p1 + (p2 - p1) * proj / line_vec_norm) - points
+
+    return reflected_points if original_shape[0] > 1 else reflected_points[0]
 
 
 def _is_iterable(items):
@@ -527,7 +542,7 @@ def _is_iterable(items):
     Args:
         items: any Item to check for iterability.
     """
-    return isinstance(items, (list, tuple, set, np.ndarray))
+    return isinstance(items, list | tuple | set | np.ndarray)
 
 
 def _parse_coordinate(c):
@@ -716,8 +731,17 @@ def _simplify(points, tolerance=0):
 if __name__ == "__main__":
     import gdsfactory as gf
 
-    c = gf.Component()
-    label = c.add_label("hi")
-    print(c.labels[0])
+    # c = gf.Component()
+    # label = c.add_label("hi")
+    # print(c.labels[0])
     # _demo()
     # s = Step()
+
+    c = gf.Component("bend")
+    b = c << gf.components.bend_circular(angle=30)
+    s = c << gf.components.straight(length=5)
+    s.connect("o1", b.ports["o2"])
+    p = c.get_polygons(as_shapely_merged=True)
+    c2 = gf.Component()
+    c2.add_polygon(p, layer=(1, 0))
+    c2.show()

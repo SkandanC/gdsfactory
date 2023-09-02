@@ -1,0 +1,58 @@
+name: coupler_asymmetric
+ports:
+  o1:
+    center:
+    - 0.0
+    - 0.0
+    layer: WG
+    name: o1
+    orientation: 180
+    port_type: optical
+    shear_angle: null
+    width: 1.234
+  o2:
+    center:
+    - 10.0
+    - 0.367
+    layer:
+    - 1
+    - 0
+    name: o2
+    orientation: 0.0
+    port_type: optical
+    shear_angle: null
+    width: 0.5
+  o3:
+    center:
+    - 10.0
+    - -4.633
+    layer:
+    - 1
+    - 0
+    name: o3
+    orientation: 0.0
+    port_type: optical
+    shear_angle: null
+    width: 0.5
+settings:
+  changed: {}
+  child: null
+  default:
+    bend:
+      function: bend_s
+    cross_section: strip
+    dx: 10.0
+    dy: 5.0
+    gap: 0.234
+  full:
+    bend:
+      function: bend_s
+    cross_section: strip
+    dx: 10.0
+    dy: 5.0
+    gap: 0.234
+  function_name: coupler_asymmetric
+  info: {}
+  info_version: 2
+  module: gdsfactory.components.coupler_asymmetric
+  name: coupler_asymmetric

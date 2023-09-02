@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, List, Union
-
 import gdsfactory as gf
 from gdsfactory.components.straight import straight
 from gdsfactory.difftest import difftest
@@ -10,7 +8,7 @@ from gdsfactory.typings import ComponentSpec, Routes
 
 
 def get_routes_straight(
-    ports: Union[List[Port], Dict[str, Port]],
+    ports: list[Port] | dict[str, Port],
     straight: ComponentSpec = straight,
     **kwargs,
 ) -> Routes:
@@ -46,7 +44,7 @@ def get_routes_straight(
     return Routes(references=references, ports=ports, lengths=lengths)
 
 
-def test_get_routes_straight(check: bool = True):
+def test_get_routes_straight(check: bool = True) -> None:
     c = gf.Component("get_routes_straight")
     pad_array = gf.components.pad_array()
     c1 = c << pad_array
@@ -57,9 +55,7 @@ def test_get_routes_straight(check: bool = True):
     c.add(routes.references)
     if check:
         difftest(c)
-    return c
 
 
 if __name__ == "__main__":
-    c = test_get_routes_straight(False)
-    c.show(show_ports=True)
+    test_get_routes_straight(False)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Tuple, Union
+from collections.abc import Callable
 
 import gdstk
 import numpy as np
@@ -21,13 +21,13 @@ def route_fiber_single(
     grating_coupler: ComponentSpec = grating_coupler_te,
     min_input_to_output_spacing: float = 200.0,
     optical_routing_type: int = 1,
-    optical_port_labels: Optional[Tuple[str, ...]] = None,
-    excluded_ports: Optional[Tuple[str, ...]] = None,
-    component_name: Optional[str] = None,
+    port_names: tuple[str, ...] | None = None,
+    excluded_ports: tuple[str, ...] | None = None,
+    component_name: str | None = None,
     select_ports: Callable = select_ports_optical,
     cross_section: CrossSectionSpec = strip,
     **kwargs,
-) -> Tuple[List[Union[ComponentReference, Label]], List[ComponentReference]]:
+) -> tuple[list[ComponentReference | Label], list[ComponentReference]]:
     """Returns route Tuple(references, grating couplers) for single fiber input/output.
 
     Args:
@@ -36,7 +36,7 @@ def route_fiber_single(
         grating_coupler: grating coupler Spec
         min_input_to_output_spacing: so opposite fibers do not touch
         optical_routing_type: 0 (basic), 1 (standard), 2 (looks at ports)
-        optical_port_labels: port labels that need connection
+        port_names: port labels that need connection
         excluded_ports: ports excluded from routing
         component_name: Optional component name.
         select_ports: function to select ports.
@@ -85,10 +85,10 @@ def route_fiber_single(
     component = component.copy()
     component_copy = component.copy()
 
-    if optical_port_labels is None:
+    if port_names is None:
         optical_ports = select_ports(component.ports)
     else:
-        optical_ports = [component.ports[lbl] for lbl in optical_port_labels]
+        optical_ports = [component.ports[lbl] for lbl in port_names]
 
     excluded_ports = excluded_ports or []
     optical_ports = {

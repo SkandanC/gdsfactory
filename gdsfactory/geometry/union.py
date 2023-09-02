@@ -18,7 +18,7 @@ def _union_polygons(polygons, precision: float = 1e-4):
         max_points : int
             The maximum number of vertices within the resulting polygon.
 
-    Returns
+    Returns:
         unioned: polygon The result of the union of all the polygons
             within the input PolygonSet.
     """
@@ -38,9 +38,9 @@ def union(
     join_first: bool = True,
     layer: Layer = (1, 0),
 ) -> Component:
-    """Returns inverted union of Component polygons.
+    """Returns new Component with inverted union of Component polygons.
 
-    based on phidl.geometry.invert
+    based on phidl.geometry.union
 
     Args:
         component: Component(/Reference), list of Component(/Reference), or Polygon
@@ -52,6 +52,14 @@ def union(
             in adjacent polygons.
         layer: Specific layer to put polygon geometry on.
 
+    .. plot::
+      :include-source:
+
+      import gdsfactory as gf
+      c = gf.Component()
+      c << gf.components.ellipse(radii=(6, 6))
+      c << gf.components.ellipse(radii=(10, 4))
+      c2 = gf.geometry.union(c, join_first=False)
     """
     U = Component()
 
@@ -65,9 +73,13 @@ def union(
             U.add_polygon(unioned_polygons, layer=layer)
     else:
         all_polygons = component.get_polygons(by_spec=False)
-        unioned_polygons = _union_polygons(
-            all_polygons,
-            precision=precision,
+        unioned_polygons = (
+            _union_polygons(
+                all_polygons,
+                precision=precision,
+            )
+            if join_first
+            else all_polygons
         )
         U.add_polygon(unioned_polygons, layer=layer)
     return U
@@ -75,16 +87,16 @@ def union(
 
 def test_union() -> None:
     c = Component()
-    c << gf.components.ellipse(radii=(6, 6)).move((12, 10))
+    c << gf.components.ellipse(radii=(6, 6))
     c << gf.components.ellipse(radii=(10, 4))
     c2 = union(c)
-    assert int(c2.area()) == 238, c2.area()
+    assert int(c2.area()) == 153, c2.area()
 
 
 if __name__ == "__main__":
     test_union()
     c = Component()
-    c << gf.components.ellipse(radii=(6, 6)).move((12, 10))
+    c << gf.components.ellipse(radii=(6, 6))
     c << gf.components.ellipse(radii=(10, 4))
-    c2 = union(c)
+    c2 = union(c, join_first=False)
     c2.show()

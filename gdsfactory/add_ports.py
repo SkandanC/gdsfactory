@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Optional, Tuple
 
 import numpy as np
 from numpy import arctan2, degrees, isclose
@@ -16,13 +15,13 @@ from gdsfactory.typings import LayerSpec
 def add_ports_from_markers_square(
     component: Component,
     pin_layer: LayerSpec = "DEVREC",
-    port_layer: Optional[LayerSpec] = None,
-    orientation: Optional[int] = 90,
+    port_layer: LayerSpec | None = None,
+    orientation: int | None = 90,
     min_pin_area_um2: float = 0,
     max_pin_area_um2: float = 150 * 150,
     pin_extra_width: float = 0.0,
-    port_names: Optional[Tuple[str, ...]] = None,
-    port_name_prefix: Optional[str] = None,
+    port_names: tuple[str, ...] | None = None,
+    port_name_prefix: str | None = None,
     port_type: str = "optical",
 ) -> Component:
     """Add ports from square markers at the port center in port_layer.
@@ -69,33 +68,29 @@ def add_ports_from_markers_square(
 def add_ports_from_markers_center(
     component: Component,
     pin_layer: LayerSpec = "PORT",
-    port_layer: Optional[LayerSpec] = None,
+    port_layer: LayerSpec | None = None,
     inside: bool = False,
     tol: float = 0.1,
     pin_extra_width: float = 0.0,
-    min_pin_area_um2: Optional[float] = None,
+    min_pin_area_um2: float | None = None,
     max_pin_area_um2: float = 150.0 * 150.0,
     skip_square_ports: bool = False,
-    xcenter: Optional[float] = None,
-    ycenter: Optional[float] = None,
-    port_name_prefix: Optional[str] = None,
+    xcenter: float | None = None,
+    ycenter: float | None = None,
+    port_name_prefix: str | None = None,
     port_type: str = "optical",
     short_ports: bool = False,
     auto_rename_ports: bool = True,
     debug: bool = False,
 ) -> Component:
-    """Add ports from rectangular pin markers.
-
-    markers at port center, so half of the marker goes inside and half outside the port.
-
-    guess port orientation from the component center (xcenter)
+    """Add ports from pins guessing port orientation from component boundary.
 
     Args:
         component: to read polygons from and to write ports to.
         pin_layer: GDS layer for maker [int, int].
         port_layer: for the new created port.
         inside: True-> markers  inside. False-> markers at center.
-        tol: tolerance for comparing how rectangular is the pin.
+        tol: tolerance area to search ports at component boundaries xmin, ymin, xmax, xmax.
         pin_extra_width: 2*offset from pin to straight.
         min_pin_area_um2: ignores pins with area smaller than min_pin_area_um2.
         max_pin_area_um2: ignore pins for area above certain size.
@@ -165,11 +160,11 @@ def add_ports_from_markers_center(
 
     for i, p in enumerate(port_markers.polygons):
         port_name = f"{port_name_prefix}{i+1}" if port_name_prefix else str(i)
-        (xmin, ymin), (xmax, ymax) = p.bounding_box()
+        (pxmin, pymin), (pxmax, pymax) = p.bounding_box()
         x, y = np.sum(p.bounding_box(), 0) / 2
 
-        dy = ymax - ymin
-        dx = xmax - xmin
+        dy = pymax - pymin
+        dx = pxmax - pxmin
 
         if min_pin_area_um2 and dx * dy < min_pin_area_um2:
             if debug:
@@ -184,58 +179,58 @@ def add_ports_from_markers_center(
                 print(f"skipping square port at ({x}, {y})")
             continue
 
-        pxmax = xmax
-        pxmin = xmin
-        pymax = ymax
-        pymin = ymin
+        orientation = -1
 
-        orientation = 0
-
+        # rectangular ports orientation is easier to detect
         if dy < dx if short_ports else dx < dy:
             if x > xc:  # east
                 orientation = 0
                 width = dy
-                x = xmax if inside else x
+                x = pxmax if inside else x
             elif x < xc:  # west
                 orientation = 180
                 width = dy
-                x = xmin if inside else x
+                x = pxmin if inside else x
         elif dy > dx if short_ports else dx > dy:
             if y > yc:  # north
                 orientation = 90
                 width = dx
-                y = ymax if inside else y
+                y = pymax if inside else y
             elif y < yc:  # south
                 orientation = 270
                 width = dx
-                y = ymin if inside else y
+                y = pymin if inside else y
 
+        # square ports ports are harder to detect orientation
         elif pxmax > xmax - tol:  # east
             orientation = 0
             width = dy
-            x = xmax if inside else x
+            x = pxmax if inside else x
         elif pxmin < xmin + tol:  # west
             orientation = 180
             width = dy
-            x = xmin if inside else x
+            x = pxmin if inside else x
         elif pymax > ymax - tol:  # north
             orientation = 90
             width = dx
-            y = ymax if inside else y
+            y = pymax if inside else y
         elif pymin < ymin + tol:  # south
             orientation = 270
             width = dx
-            y = ymin if inside else y
+            y = pymin if inside else y
 
         elif pxmax > xc:
             orientation = 0
             width = dy
-            x = xmax if inside else x
+            x = pxmax if inside else x
 
         elif pxmax < xc:
             orientation = 180
             width = dy
-            x = xmin if inside else x
+            x = pxmin if inside else x
+
+        if orientation == -1:
+            raise ValueError(f"Unable to detector port at ({x}, {y})")
 
         x = snap_to_grid(x)
         y = snap_to_grid(y)
@@ -276,13 +271,13 @@ def add_ports_from_labels(
     component: Component,
     port_width: float,
     port_layer: LayerSpec,
-    xcenter: Optional[float] = None,
-    port_name_prefix: Optional[str] = None,
+    xcenter: float | None = None,
+    port_name_prefix: str | None = None,
     port_type: str = "optical",
     get_name_from_label: bool = False,
-    layer_label: Optional[LayerSpec] = None,
+    layer_label: LayerSpec | None = None,
     fail_on_duplicates: bool = False,
-    port_orientation: Optional[float] = None,
+    port_orientation: float | None = None,
     guess_port_orientation: bool = True,
 ) -> Component:
     """Add ports from labels.
@@ -363,9 +358,9 @@ def add_ports_from_labels(
 def add_ports_from_siepic_pins(
     component: Component,
     pin_layer_optical: LayerSpec = "PORT",
-    port_layer_optical: Optional[LayerSpec] = None,
+    port_layer_optical: LayerSpec | None = None,
     pin_layer_electrical: LayerSpec = "PORTE",
-    port_layer_electrical: Optional[LayerSpec] = None,
+    port_layer_electrical: LayerSpec | None = None,
 ) -> Component:
     """Add ports from SiEPIC-type cells, where the pins are defined as paths.
 

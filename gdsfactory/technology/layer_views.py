@@ -10,20 +10,30 @@ import pathlib
 import re
 import typing
 import xml.etree.ElementTree as ET
-from typing import Dict, Optional, Set, Tuple, Union
 
 import numpy as np
-from pydantic import BaseModel, Field, validator
-from pydantic.color import Color, ColorType
+import yaml
+from omegaconf import OmegaConf
+from pydantic import BaseModel, Field, field_validator
+from pydantic.color import ColorType
+from pydantic_extra_types.color import Color
 
 from gdsfactory.config import logger
+from gdsfactory.name import clean_name
+from gdsfactory.technology.color_utils import ensure_six_digit_hex_color
+from gdsfactory.technology.xml_utils import make_pretty_xml
+from gdsfactory.technology.yaml_utils import (
+    add_color_yaml_presenter,
+    add_multiline_str_yaml_presenter,
+    add_tuple_yaml_presenter,
+)
 
 if typing.TYPE_CHECKING:
     from pydantic.typing import AbstractSetIntStr, DictStrAny, MappingIntStrAny
 
-PathLike = Union[pathlib.Path, str]
+PathLike = pathlib.Path | str
 
-Layer = Tuple[int, int]
+Layer = tuple[int, int]
 
 _klayout_line_styles = {
     "solid": "",
@@ -277,17 +287,13 @@ class HatchPattern(BaseModel):
         custom_pattern: Pattern defining custom shape.
     """
 
-    name: str
-    order: Optional[int] = None
-    custom_pattern: Optional[str] = None
+    name: str | None = Field(default=None, exclude=True)
+    order: int | None = None
+    custom_pattern: str | None = None
 
-    class Config:
-        """YAML output uses name as the key."""
-
-        fields = {"name": {"exclude": True}}
-
-    @validator("custom_pattern")
-    def check_pattern_klayout(cls, pattern: Optional[str], **kwargs) -> Optional[str]:
+    @field_validator("custom_pattern")
+    @classmethod
+    def check_pattern_klayout(cls, pattern: str | None, **kwargs) -> str | None:
         if pattern is None:
             return None
         lines = pattern.splitlines()
@@ -327,17 +333,13 @@ class LineStyle(BaseModel):
         custom_style: Line style to use.
     """
 
-    name: str
-    order: Optional[int] = None
-    custom_style: Optional[str] = None
+    name: str | None = Field(default=None, exclude=True)
+    order: int | None = None
+    custom_style: str | None = None
 
-    class Config:
-        """YAML output uses name as the key."""
-
-        fields = {"name": {"exclude": True}}
-
-    @validator("custom_style")
-    def check_pattern(cls, pattern: Optional[str], **kwargs) -> Optional[str]:
+    @field_validator("custom_style")
+    @classmethod
+    def check_pattern(cls, pattern: str | None, **kwargs) -> str | None:
         if pattern is None:
             return None
 
@@ -399,38 +401,33 @@ class LayerView(BaseModel):
         group_members: Add a list of group members to the LayerView.
     """
 
-    name: Optional[str] = None
-    info: Optional[str] = None
-    layer: Optional[Layer] = None
+    name: str | None = Field(default=None, exclude=True)
+    info: str | None = Field(default=None)
+    layer: Layer | None = None
     layer_in_name: bool = False
-    frame_color: Optional[Color] = None
-    fill_color: Optional[Color] = None
+    frame_color: Color | None = None
+    fill_color: Color | None = None
     frame_brightness: int = 0
     fill_brightness: int = 0
-    hatch_pattern: Optional[Union[str, HatchPattern]] = None
-    line_style: Optional[Union[str, LineStyle]] = None
+    hatch_pattern: str | HatchPattern | None = None
+    line_style: str | LineStyle | None = None
     valid: bool = True
     visible: bool = True
     transparent: bool = False
-    width: Optional[int] = None
+    width: int | None = None
     marked: bool = False
     xfill: bool = False
     animation: int = 0
-    group_members: Optional[Dict[str, LayerView]] = Field(default_factory=dict)
-
-    class Config:
-        """YAML output uses name as the key."""
-
-        fields = {"name": {"exclude": True}}
+    group_members: typing.Dict[str, LayerView] | None = Field(default={})  # noqa: UP006
 
     def __init__(
         self,
-        gds_layer: Optional[int] = None,
-        gds_datatype: Optional[int] = None,
-        color: Optional[ColorType] = None,
-        brightness: Optional[int] = None,
+        gds_layer: int | None = None,
+        gds_datatype: int | None = None,
+        color: ColorType | None = None,
+        brightness: int | None = None,
         **data,
-    ):
+    ) -> None:
         """Initialize LayerView object."""
         if (gds_layer is not None) and (gds_datatype is not None):
             if "layer" in data and data["layer"] is not None:
@@ -455,7 +452,7 @@ class LayerView(BaseModel):
         super().__init__(**data)
 
         # Iterate through all items, adding group members as needed
-        for name, field in self.__fields__.items():
+        for name, field in self.model_fields.items():
             default = field.get_default()
             if isinstance(default, LayerView):
                 self.group_members[name] = default
@@ -463,10 +460,9 @@ class LayerView(BaseModel):
     def dict(
         self,
         *,
-        include: Optional[Union[AbstractSetIntStr, MappingIntStrAny]] = None,
-        exclude: Optional[Union[AbstractSetIntStr, MappingIntStrAny]] = None,
+        include: AbstractSetIntStr | MappingIntStrAny | None = None,
+        exclude: AbstractSetIntStr | MappingIntStrAny | None = None,
         by_alias: bool = False,
-        skip_defaults: Optional[bool] = None,
         exclude_unset: bool = False,
         exclude_defaults: bool = False,
         exclude_none: bool = False,
@@ -475,12 +471,27 @@ class LayerView(BaseModel):
         """Generate a dictionary representation of the model, optionally specifying which fields to include or exclude.
 
         Specify "simplify" to consolidate fill and frame color/brightness if they are the same.
+
+        Args:
+            mode: The mode in which `to_python` should run.
+                If mode is 'json', the dictionary will only contain JSON serializable types.
+                If mode is 'python', the dictionary may contain any Python objects.
+            include: A list of fields to include in the output.
+            exclude: A list of fields to exclude from the output.
+            by_alias: Whether to use the field's alias in the dictionary key if defined.
+            exclude_unset: Whether to exclude fields that are unset or None from the output.
+            exclude_defaults: Whether to exclude fields that are set to their default value from the output.
+            exclude_none: Whether to exclude fields that have a value of `None` from the output.
+            simplify: Whether to consolidate fill and frame color/brightness if they are the same.
+
+        Returns:
+            A dictionary representation of the model.
+
         """
-        _dict = super().dict(
+        _dict = super().model_dump(
             include=include,
             exclude=exclude,
             by_alias=by_alias,
-            skip_defaults=skip_defaults,
             exclude_unset=exclude_unset,
             exclude_defaults=exclude_defaults,
             exclude_none=exclude_none,
@@ -499,17 +510,17 @@ class LayerView(BaseModel):
                     _dict.pop(f"fill_{key}")
         return _dict
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Returns a formatted view of properties and their values."""
         return "LayerView:\n\t" + "\n\t".join(
-            [f"{k}: {v}" for k, v in self.dict().items()]
+            [f"{k}: {v}" for k, v in self.model_dump().items()]
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Returns a formatted view of properties and their values."""
         return self.__str__()
 
-    def get_alpha(self):
+    def get_alpha(self) -> float:
         if not self.visible:
             return 0.0
         elif not self.transparent:
@@ -523,9 +534,7 @@ class LayerView(BaseModel):
         else:
             return 0.3
 
-    def get_color_dict(self) -> Dict[str, str]:
-        from gdsfactory.utils.color_utils import ensure_six_digit_hex_color
-
+    def get_color_dict(self) -> dict[str, str]:
         if self.fill_color is not None or self.frame_color is not None:
             return {
                 "fill_color": ensure_six_digit_hex_color(self.fill_color.as_hex()),
@@ -553,7 +562,6 @@ class LayerView(BaseModel):
         self, tag: str, name: str, custom_hatch_patterns: dict, custom_line_styles: dict
     ) -> ET.Element:
         """Get XML Element from attributes."""
-        from gdsfactory.utils.color_utils import ensure_six_digit_hex_color
 
         # If hatch pattern name matches a named (built-in) KLayout pattern, use 'I<idx>' notation
         hatch_name = getattr(self.hatch_pattern, "name", self.hatch_pattern)
@@ -650,15 +658,14 @@ class LayerView(BaseModel):
 
     @staticmethod
     def _process_name(
-        name: str, layer_pattern: Union[str, re.Pattern]
-    ) -> Tuple[Optional[str], Optional[bool]]:
+        name: str, layer_pattern: str | re.Pattern
+    ) -> tuple[str | None, bool | None]:
         """Strip layer info from name if it exists.
 
         Args:
             name: XML-formatted name entry.
             layer_pattern: Regex pattern to match layers with.
         """
-        from gdsfactory.name import clean_name
 
         if not name:
             return None, None
@@ -671,9 +678,7 @@ class LayerView(BaseModel):
         return clean_name(name, remove_dots=True), layer_in_name
 
     @staticmethod
-    def _process_layer(
-        layer: str, layer_pattern: Union[str, re.Pattern]
-    ) -> Optional[Layer]:
+    def _process_layer(layer: str, layer_pattern: str | re.Pattern) -> Layer | None:
         """Convert .lyp XML layer entry to a Layer.
 
         Args:
@@ -688,8 +693,8 @@ class LayerView(BaseModel):
 
     @classmethod
     def from_xml_element(
-        cls, element: ET.Element, layer_pattern: Union[str, re.Pattern]
-    ) -> Optional[LayerView]:
+        cls, element: ET.Element, layer_pattern: str | re.Pattern
+    ) -> LayerView | None:
         """Read properties from .lyp XML and generate LayerViews from them.
 
         Args:
@@ -703,33 +708,33 @@ class LayerView(BaseModel):
             return None
 
         # Translate KLayout index to hatch name
-        hatch_pattern = element.find("dither-pattern").text
-        if hatch_pattern and re.match(r"I\d+", hatch_pattern):
+        hatch_pattern = element.find("dither-pattern")
+        if hatch_pattern and re.match(r"I\d+", hatch_pattern.text):
             hatch_pattern = list(_klayout_dither_patterns.keys())[
-                int(hatch_pattern[1:])
+                int(hatch_pattern.text[1:])
             ]
 
         # Translate KLayout index to line style name
-        line_style = element.find("line-style").text
-        if line_style and re.match(r"I\d+", line_style):
-            line_style = list(_klayout_line_styles.keys())[int(line_style[1:])]
+        line_style = element.find("line-style")
+        if line_style and re.match(r"I\d+", line_style.text):
+            line_style = list(_klayout_line_styles.keys())[int(line_style.text[1:])]
 
         lv = LayerView(
             name=name,
             layer=cls._process_layer(element.find("source").text, layer_pattern),
-            fill_color=element.find("fill-color").text,
-            frame_color=element.find("frame-color").text,
+            fill_color=getattr(element.find("fill-color"), "text", None),
+            frame_color=getattr(element.find("frame-color"), "text", None),
             fill_brightness=element.find("fill-brightness").text or 0,
             frame_brightness=element.find("frame-brightness").text or 0,
-            hatch_pattern=hatch_pattern or "solid",
-            line_style=line_style or "solid",
-            valid=element.find("valid").text,
-            visible=element.find("visible").text,
-            transparent=element.find("transparent").text,
-            width=element.find("width").text,
-            marked=element.find("marked").text,
-            xfill=element.find("xfill").text,
-            animation=element.find("animation").text,
+            hatch_pattern=hatch_pattern or None,
+            line_style=line_style or None,
+            valid=getattr(element.find("valid"), "text", True),
+            visible=getattr(element.find("visible"), "text", True),
+            transparent=getattr(element.find("transparent"), "text", False),
+            width=getattr(element.find("width"), "text", None),
+            marked=getattr(element.find("marked"), "text", False),
+            xfill=getattr(element.find("xfill"), "text", False),
+            animation=getattr(element.find("animation"), "text", False),
             layer_in_name=layer_in_name,
         )
 
@@ -756,17 +761,17 @@ class LayerViews(BaseModel):
         layer_map: Specify a layer_map to get the layer tuple based on the name of the LayerView, rather than the 'layer' argument.
     """
 
-    layer_views: Dict[str, LayerView] = Field(default_factory=dict)
-    custom_dither_patterns: Dict[str, HatchPattern] = Field(default_factory=dict)
-    custom_line_styles: Dict[str, LineStyle] = Field(default_factory=dict)
-    layer_map: Union[Dict[str, Layer], BaseModel] = Field(default_factory=dict)
+    layer_views: dict[str, LayerView] = Field(default_factory=dict)
+    custom_dither_patterns: dict[str, HatchPattern] = Field(default_factory=dict)
+    custom_line_styles: dict[str, LineStyle] = Field(default_factory=dict)
+    layer_map: dict[str, Layer] | BaseModel = Field(default_factory=dict)
 
     def __init__(
         self,
-        filepath: Optional[PathLike] = None,
-        layer_map: Union[Dict[str, Layer], BaseModel] = None,
+        filepath: PathLike | None = None,
+        layer_map: dict[str, Layer] | BaseModel | None = None,
         **data,
-    ):
+    ) -> None:
         """Initialize LayerViews object.
 
         Args:
@@ -780,7 +785,7 @@ class LayerViews(BaseModel):
                 logger.info(
                     f"Importing LayerViews from KLayout layer properties file: {str(filepath)!r}."
                 )
-            elif filepath.suffix in [".yaml", ".yml"]:
+            elif filepath.suffix in {".yaml", ".yml"}:
                 lvs = LayerViews.from_yaml(layer_file=filepath)
                 logger.info(f"Importing LayerViews from YAML file: {str(filepath)!r}.")
             else:
@@ -791,14 +796,14 @@ class LayerViews(BaseModel):
             data["custom_dither_patterns"] = lvs.custom_dither_patterns
 
         if isinstance(layer_map, BaseModel):
-            layer_map = layer_map.dict()
+            layer_map = layer_map.model_dump()
 
         if layer_map is not None:
             data["layer_map"] = layer_map
 
         super().__init__(**data)
 
-        for name in self.dict():
+        for name in self.model_dump():
             lv = getattr(self, name)
             if isinstance(lv, LayerView):
                 #
@@ -808,7 +813,7 @@ class LayerViews(BaseModel):
                 self.add_layer_view(name=name, layer_view=lv)
 
     def add_layer_view(
-        self, name: str, layer_view: Optional[LayerView] = None, **kwargs
+        self, name: str, layer_view: LayerView | None = None, **kwargs
     ) -> None:
         """Adds a layer to LayerViews.
 
@@ -822,6 +827,8 @@ class LayerViews(BaseModel):
             )
         if layer_view is None:
             layer_view = LayerView(name=name, **kwargs)
+        if layer_view.name is None:
+            layer_view.name = name
         self.layer_views[name] = layer_view
 
         # If the dither pattern is a CustomDitherPattern, add it to custom_patterns
@@ -850,7 +857,7 @@ class LayerViews(BaseModel):
         ):
             layer_view.line_style = self.custom_line_styles[line_style]
 
-    def get_layer_views(self, exclude_groups: bool = False) -> Dict[str, LayerView]:
+    def get_layer_views(self, exclude_groups: bool = False) -> dict[str, LayerView]:
         """Return all LayerViews.
 
         Args:
@@ -865,7 +872,7 @@ class LayerViews(BaseModel):
             layers[name] = view
         return layers
 
-    def get_layer_view_groups(self) -> Dict[str, LayerView]:
+    def get_layer_view_groups(self) -> dict[str, LayerView]:
         """Return the LayerViews that contain other LayerViews."""
         return {name: lv for name, lv in self.layer_views.items() if lv.group_members}
 
@@ -925,7 +932,7 @@ class LayerViews(BaseModel):
         name = tuple_to_name[layer_tuple]
         return self.get_layer_views()[name]
 
-    def get_layer_tuples(self) -> Set[Layer]:
+    def get_layer_tuples(self) -> set[Layer]:
         """Returns a tuple for each layer."""
         return {layer.layer for layer in self.get_layer_views().values()}
 
@@ -974,8 +981,8 @@ class LayerViews(BaseModel):
         return D
 
     def to_lyp(
-        self, filepath: Union[str, pathlib.Path], overwrite: bool = True
-    ) -> None:
+        self, filepath: str | pathlib.Path, overwrite: bool = True
+    ) -> pathlib.Path:
         """Write all layer properties to a KLayout .lyp file.
 
         Args:
@@ -983,9 +990,10 @@ class LayerViews(BaseModel):
             overwrite: Whether to overwrite an existing file located at the filepath.
 
         """
-        from gdsfactory.utils.xml_utils import make_pretty_xml
 
         filepath = pathlib.Path(filepath)
+        dirpath = filepath.parent
+        dirpath.mkdir(exist_ok=True, parents=True)
 
         if filepath.exists() and not overwrite:
             raise OSError(f"File {str(filepath)!r} exists, cannot write.")
@@ -1007,11 +1015,12 @@ class LayerViews(BaseModel):
             root.append(ls.to_klayout_xml())
 
         filepath.write_bytes(make_pretty_xml(root))
+        return filepath
 
     @staticmethod
     def from_lyp(
-        filepath: Union[str, pathlib.Path],
-        layer_pattern: Optional[Union[str, re.Pattern]] = None,
+        filepath: str | pathlib.Path,
+        layer_pattern: str | re.Pattern | None = None,
     ) -> LayerViews:
         r"""Write all layer properties to a KLayout .lyp file.
 
@@ -1088,23 +1097,18 @@ class LayerViews(BaseModel):
         )
 
     def to_yaml(
-        self, layer_file: Union[str, pathlib.Path], prefer_named_color: bool = True
+        self, layer_file: str | pathlib.Path, prefer_named_color: bool = True
     ) -> None:
-        """Export layer properties to two yaml files.
+        """Export layer properties to a YAML file.
 
         Args:
             layer_file: Name of the file to write LayerViews to.
             prefer_named_color: Write the name of a color instead of its hex representation when possible.
         """
-        import yaml
-
-        from gdsfactory.utils.yaml_utils import (
-            add_color_yaml_presenter,
-            add_multiline_str_yaml_presenter,
-            add_tuple_yaml_presenter,
-        )
 
         lf_path = pathlib.Path(layer_file)
+        dirpath = lf_path.parent
+        dirpath.mkdir(exist_ok=True, parents=True)
 
         add_tuple_yaml_presenter()
         add_multiline_str_yaml_presenter()
@@ -1115,21 +1119,21 @@ class LayerViews(BaseModel):
             for name, lv in self.layer_views.items()
         }
 
-        out_dict = {
-            "LayerViews": lvs,
-            "CustomDitherPatterns": {
+        out_dict = {"LayerViews": lvs}
+        if self.custom_dither_patterns:
+            out_dict["CustomDitherPatterns"] = {
                 name: dp.dict(
                     exclude_none=True, exclude_defaults=True, exclude_unset=True
                 )
                 for name, dp in self.custom_dither_patterns.items()
-            },
-            "CustomLineStyles": {
+            }
+        if self.custom_line_styles:
+            out_dict["CustomLineStyles"] = {
                 name: ls.dict(
                     exclude_none=True, exclude_defaults=True, exclude_unset=True
                 )
                 for name, ls in self.custom_line_styles.items()
-            },
-        }
+            }
 
         lf_path.write_bytes(
             yaml.dump(
@@ -1142,13 +1146,12 @@ class LayerViews(BaseModel):
         )
 
     @staticmethod
-    def from_yaml(layer_file: Union[str, pathlib.Path]) -> LayerViews:
+    def from_yaml(layer_file: str | pathlib.Path) -> LayerViews:
         """Import layer properties from two yaml files.
 
         Args:
             layer_file: Name of the file to read LayerViews, CustomDitherPatterns, and CustomLineStyles from.
         """
-        from omegaconf import OmegaConf
 
         layer_file = pathlib.Path(layer_file)
 
@@ -1197,7 +1200,6 @@ def _name_to_short_name(name_str: str) -> str:
         - key - description
 
     """
-    from gdsfactory.name import clean_name
 
     if name_str is None:
         raise OSError(f"layer {name_str} has no name")
@@ -1223,12 +1225,11 @@ def _name_to_description(name_str) -> str:
     return " ".join(fields[1:]) if len(fields) > 1 else ""
 
 
-def test_load_lyp():
+def test_load_lyp() -> None:
     from gdsfactory.config import PATH
 
     lys = LayerViews(PATH.klayout_lyp)
     assert len(lys.layer_views) > 10, len(lys.layer_views)
-    return lys
 
 
 if __name__ == "__main__":

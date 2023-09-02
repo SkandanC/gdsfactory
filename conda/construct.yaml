@@ -1,10 +1,11 @@
 name: gdsfactory
-version: 6.61.0
+version: 7.4.3
 installer_type: all
 
 channels:
   - https://conda.anaconda.org/conda-forge
   - http://repo.anaconda.com/pkgs/main/
+  - https://repo.anaconda.com/pkgs/msys2/
 
 specs:
   - conda
@@ -21,7 +22,6 @@ specs:
   - networkx
   - pyglet
   - scikit-image
-  - triangle
   - trimesh
   - pyvista
   - mkl

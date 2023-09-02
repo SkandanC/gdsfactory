@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import typing
+
+from gdsfactory.config import PATH
 from gdsfactory.generic_tech.layer_map import GenericLayerMap as LayerMap
 from gdsfactory.generic_tech.layer_stack import LAYER_STACK
 from gdsfactory.technology import LayerViews
-from gdsfactory.config import PATH
 
 if typing.TYPE_CHECKING:
     from gdsfactory.pdk import Pdk
@@ -40,21 +41,26 @@ LAYER_TRANSITIONS = {
 
 def get_generic_pdk() -> Pdk:
     from gdsfactory.components import cells
-    from gdsfactory.config import sparameters_path, PATH
+    from gdsfactory.config import PATH
     from gdsfactory.cross_section import cross_sections
+    from gdsfactory.generic_tech.containers import containers
+    from gdsfactory.generic_tech.simulation_settings import materials_index
     from gdsfactory.pdk import Pdk, constants
 
     LAYER_VIEWS = LayerViews(filepath=PATH.klayout_yaml)
+
+    cells = cells.copy()
+    cells.update(containers)
 
     return Pdk(
         name="generic",
         cells=cells,
         cross_sections=cross_sections,
-        layers=LAYER.dict(),
+        layers=dict(LAYER),
         layer_stack=LAYER_STACK,
         layer_views=LAYER_VIEWS,
         layer_transitions=LAYER_TRANSITIONS,
-        sparameters_path=sparameters_path,
+        materials_index=materials_index,
         constants=constants,
     )
 
@@ -63,6 +69,6 @@ if __name__ == "__main__":
     layer_views = LayerViews(filepath=PATH.klayout_yaml)
     layer_views.to_lyp(PATH.klayout_lyp)
 
-    # pdk = get_generic_pdk()
+    pdk = get_generic_pdk()
     # pdk.layer_views.to_yaml('layer_views2.yaml')
     # print(pdk.name)

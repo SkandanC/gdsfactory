@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from functools import partial
+
 import toolz
 
 import gdsfactory as gf
 
 
 def test_metadata_export_partial() -> None:
-    straight_wide = gf.partial(gf.components.straight, width=2)
+    straight_wide = partial(gf.components.straight, width=2)
     c = straight_wide()
     d = c.to_dict()
     assert d["settings"]["full"]["width"] == 2

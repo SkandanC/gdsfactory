@@ -29,22 +29,67 @@ Specs:
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import pathlib
-import dataclasses
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import gdstk
 import numpy as np
 from omegaconf import OmegaConf
-from pydantic import BaseModel, Extra
-from typing_extensions import Literal
+from pydantic import BaseModel
 
 from gdsfactory.component import Component, ComponentReference
 from gdsfactory.component_layout import Label
-from gdsfactory.cross_section import CrossSection, Section, Transition
+from gdsfactory.cross_section import CrossSection, Section, Transition, WidthTypes
 from gdsfactory.port import Port
 from gdsfactory.technology import LayerLevel, LayerStack
+
+# TODO: remove this
+# def __getattr__(name):
+#     if name == "Optional":
+#         from typing import Optional
+
+#         warnings.warn(
+#             "gdsfactory.typings.Optional will be removed soon. "
+#             "Use from typing import Optional instead.",
+#             stacklevel=2,
+#         )
+#         return Optional
+#     elif name == "Union":
+#         from typing import Union
+
+#         warnings.warn(
+#             "gdsfactory.typings.Union will be removed soon. "
+#             "Use from typing import Union instead.",
+#             stacklevel=2,
+#         )
+#         return Union
+#     elif name == "Tuple":
+
+#         warnings.warn(
+#             "gdsfactory.typings.Tuple will be removed soon. "
+#             "Use from typing import Tuple instead.",
+#             stacklevel=2,
+#         )
+#         return tuple
+#     elif name == "List":
+
+#         warnings.warn(
+#             "gdsfactory.typings.List will be removed soon. "
+#             "Use from typing import List instead.",
+#             stacklevel=2,
+#         )
+#         return list
+#     elif name == "Dict":
+
+#         warnings.warn(
+#             "gdsfactory.typings.model_dump() will be removed soon. "
+#             "Use from typing import Dict instead.",
+#             stacklevel=2,
+#         )
+#         return dict
 
 
 STEP_DIRECTIVES = {
@@ -79,23 +124,23 @@ class Step:
 
     """
 
-    x: Optional[float] = None
-    y: Optional[float] = None
-    dx: Optional[float] = None
-    dy: Optional[float] = None
+    x: float | None = None
+    y: float | None = None
+    dx: float | None = None
+    dy: float | None = None
 
 
 @dataclasses.dataclass
 class StepAllAngle:
-    x: Optional[float] = None
-    y: Optional[float] = None
-    dx: Optional[float] = None
-    dy: Optional[float] = None
-    ds: Optional[float] = None
-    exit_angle: Optional[float] = None
-    cross_section: Optional[CrossSectionSpec] = None
-    connector: Optional[ComponentSpec] = None
-    separation: Optional[float] = None
+    x: float | None = None
+    y: float | None = None
+    dx: float | None = None
+    dy: float | None = None
+    ds: float | None = None
+    exit_angle: float | None = None
+    cross_section: CrossSectionSpec | None = None
+    connector: ComponentSpec | None = None
+    separation: float | None = None
 
     """All angle Ste.
 
@@ -110,11 +155,7 @@ class StepAllAngle:
         separation: in um.
 
     """
-
-    class Config:
-        """Config for Steps with all angle."""
-
-        extra = Extra.forbid
+    model_config = {"extra": "forbid", "frozen": True}
 
 
 Anchor = Literal[
@@ -131,127 +172,120 @@ Anchor = Literal[
 ]
 Axis = Literal["x", "y"]
 NSEW = Literal["N", "S", "E", "W"]
-WidthTypes = Literal["sine", "linear", "parabolic"]
 
 
-Float2 = Tuple[float, float]
-Float3 = Tuple[float, float, float]
-Floats = Tuple[float, ...]
-Strs = Tuple[str, ...]
-Int2 = Tuple[int, int]
-Int3 = Tuple[int, int, int]
-Ints = Tuple[int, ...]
+Float2 = tuple[float, float]
+Float3 = tuple[float, float, float]
+Floats = tuple[float, ...]
+Strs = tuple[str, ...]
+Int2 = tuple[int, int]
+Int3 = tuple[int, int, int]
+Ints = tuple[int, ...]
 
-Layer = Tuple[int, int]  # Tuple of integer (layer, datatype)
-Layers = Tuple[Layer, ...]
+Layer = tuple[int, int]  # Tuple of integer (layer, datatype)
+Layers = tuple[Layer, ...]
 
-LayerSpec = Union[
-    Layer, int, str, None
-]  # tuple of integers (layer, datatype), a integer (layer, 0) or a string (layer_name)
+LayerSpec = (
+    Layer | int | str
+)  # tuple of integers (layer, datatype), a integer (layer, 0) or a string (layer_name)
 
-LayerSpecs = Optional[Tuple[LayerSpec, ...]]
+LayerSpecs = list[LayerSpec] | tuple[LayerSpec, ...] | None
 ComponentFactory = Callable[..., Component]
-ComponentFactoryDict = Dict[str, ComponentFactory]
-PathType = Union[str, pathlib.Path]
-PathTypes = Tuple[PathType, ...]
+ComponentFactoryDict = dict[str, ComponentFactory]
+PathType = str | pathlib.Path
+PathTypes = tuple[PathType, ...]
 
 
-MaterialSpec = Union[str, float, Tuple[float, float], Callable]
+MaterialSpec = str | float | tuple[float, float] | Callable
 
-ComponentOrPath = Union[PathType, Component]
-ComponentOrReference = Union[Component, ComponentReference]
-NameToFunctionDict = Dict[str, ComponentFactory]
-Number = Union[float, int]
-Coordinate = Tuple[float, float]
-Coordinates = Tuple[Coordinate, ...]
-ComponentOrPath = Union[Component, PathType]
+ComponentOrPath = PathType | Component
+ComponentOrReference = Component | ComponentReference
+NameToFunctionDict = dict[str, ComponentFactory]
+Number = float | int
+Coordinate = tuple[float, float]
+Coordinates = tuple[Coordinate, ...]
+ComponentOrPath = Component | PathType
 CrossSectionFactory = Callable[..., CrossSection]
 TransitionFactory = Callable[..., Transition]
-CrossSectionOrFactory = Union[CrossSection, Callable[..., CrossSection]]
-PortSymmetries = Dict[str, List[str]]
-PortsDict = Dict[str, Port]
-PortsList = Dict[str, Port]
+CrossSectionOrFactory = CrossSection | Callable[..., CrossSection]
+PortSymmetries = dict[str, list[str]]
+PortsDict = dict[str, Port]
+PortsList = dict[str, Port]
 
-ComponentSpec = Union[
-    str, ComponentFactory, Component, Dict[str, Any]
-]  # PCell function, function name, dict or Component
+Sparameters = dict[str, np.ndarray]
 
-ComponentSpecOrList = Union[ComponentSpec, List[ComponentSpec]]
-CellSpec = Union[
-    str, ComponentFactory, Dict[str, Any]
-]  # PCell function, function name or dict
+ComponentSpec = (
+    str | ComponentFactory | Component | dict[str, Any]
+)  # PCell function, function name, dict or Component
 
-ComponentSpecDict = Dict[str, ComponentSpec]
-CrossSectionSpec = Union[
-    str,
-    CrossSectionFactory,
-    CrossSection,
-    Transition,
-    TransitionFactory,
-    Dict[str, Any],
-]  # cross_section function, function name or dict
-CrossSectionSpecs = Tuple[CrossSectionSpec, ...]
+ComponentSpecOrList = ComponentSpec | list[ComponentSpec]
+CellSpec = (
+    str | ComponentFactory | dict[str, Any]
+)  # PCell function, function name or dict
 
-MultiCrossSectionAngleSpec = List[Tuple[CrossSectionSpec, Tuple[int, ...]]]
+ComponentSpecDict = dict[str, ComponentSpec]
+CrossSectionSpec = (
+    str
+    | CrossSectionFactory
+    | CrossSection
+    | Transition
+    | TransitionFactory
+    | dict[str, Any]
+)  # cross_section function, function name or dict
+CrossSectionSpecs = tuple[CrossSectionSpec, ...]
+
+MultiCrossSectionAngleSpec = list[tuple[CrossSectionSpec, tuple[int, ...]]]
+
+LabelListFactory = Callable[..., list[Label]]
 
 
 class Route(BaseModel):
-    references: List[ComponentReference]
-    labels: Optional[List[gdstk.Label]] = None
-    ports: Tuple[Port, Port]
+    references: list[ComponentReference]
+    labels: list[gdstk.Label] | None = None
+    ports: tuple[Port, Port]
     length: float
 
-    class Config:
-        """Config for Route."""
-
-        extra = Extra.forbid
-        arbitrary_types_allowed = True
+    model_config = {"extra": "forbid", "arbitrary_types_allowed": True}
 
 
 class Routes(BaseModel):
-    references: List[ComponentReference]
-    lengths: List[float]
-    ports: Optional[List[Port]] = None
-    bend_radius: Optional[List[float]] = None
+    references: list[ComponentReference]
+    lengths: list[float]
+    ports: list[Port] | None = None
+    bend_radius: list[float] | None = None
 
-    class Config:
-        """Config for Routes."""
-
-        extra = Extra.forbid
+    model_config = {"extra": "forbid"}
 
 
 class ComponentModel(BaseModel):
-    component: Union[str, Dict[str, Any]]
-    settings: Optional[Dict[str, Any]]
+    component: str | dict[str, Any]
+    settings: dict[str, Any] | None
 
-    class Config:
-        extra = Extra.forbid
+    model_config = {"extra": "forbid"}
 
 
 class PlacementModel(BaseModel):
-    x: Union[str, float] = 0
-    y: Union[str, float] = 0
-    xmin: Optional[Union[str, float]] = None
-    ymin: Optional[Union[str, float]] = None
-    xmax: Optional[Union[str, float]] = None
-    ymax: Optional[Union[str, float]] = None
+    x: str | float = 0
+    y: str | float = 0
+    xmin: str | float | None = None
+    ymin: str | float | None = None
+    xmax: str | float | None = None
+    ymax: str | float | None = None
     dx: float = 0
     dy: float = 0
-    port: Optional[Union[str, Anchor]] = None
+    port: str | Anchor | None = None
     rotation: int = 0
     mirror: bool = False
 
-    class Config:
-        extra = Extra.forbid
+    model_config = {"extra": "forbid"}
 
 
 class RouteModel(BaseModel):
-    links: Dict[str, str]
-    settings: Optional[Dict[str, Any]] = None
-    routing_strategy: Optional[str] = None
+    links: dict[str, str]
+    settings: dict[str, Any] | None = None
+    routing_strategy: str | None = None
 
-    class Config:
-        extra = Extra.forbid
+    model_config = {"extra": "forbid"}
 
 
 class NetlistModel(BaseModel):
@@ -269,17 +303,16 @@ class NetlistModel(BaseModel):
 
     """
 
-    instances: Optional[Dict[str, ComponentModel]] = None
-    placements: Optional[Dict[str, PlacementModel]] = None
-    connections: Optional[Dict[str, str]] = None
-    routes: Optional[Dict[str, RouteModel]] = None
-    name: Optional[str] = None
-    info: Optional[Dict[str, Any]] = None
-    settings: Optional[Dict[str, Any]] = None
-    ports: Optional[Dict[str, str]] = None
+    instances: dict[str, ComponentModel] | None = None
+    placements: dict[str, PlacementModel] | None = None
+    connections: dict[str, str] | None = None
+    routes: dict[str, RouteModel] | None = None
+    name: str | None = None
+    info: dict[str, Any] | None = None
+    settings: dict[str, Any] | None = None
+    ports: dict[str, str] | None = None
 
-    class Config:
-        extra = Extra.forbid
+    model_config = {"extra": "forbid"}
 
 
 RouteFactory = Callable[..., Route]
@@ -293,7 +326,7 @@ class TypedArray(np.ndarray):
         yield cls.validate_type
 
     @classmethod
-    def validate_type(cls, val):
+    def validate_type(cls, val, _info):
         return np.array(val, dtype=cls.inner_type)
 
 
@@ -307,48 +340,49 @@ class Array(np.ndarray, metaclass=ArrayMeta):
 
 
 __all__ = (
+    "Any",
     "Callable",
     "Component",
     "ComponentFactory",
     "ComponentFactoryDict",
-    "ComponentSpec",
     "ComponentOrPath",
     "ComponentOrReference",
+    "ComponentSpec",
     "Coordinate",
     "Coordinates",
     "CrossSection",
     "CrossSectionFactory",
     "CrossSectionOrFactory",
     "CrossSectionSpec",
-    "MultiCrossSectionAngleSpec",
     "Float2",
     "Float3",
     "Floats",
     "Int2",
     "Int3",
     "Ints",
-    "Layer",
     "Label",
-    "Layers",
+    "Layer",
     "LayerLevel",
-    "LayerStack",
     "LayerSpec",
     "LayerSpecs",
+    "LayerStack",
+    "Layers",
+    "MultiCrossSectionAngleSpec",
     "NameToFunctionDict",
     "Number",
+    "Optional",
     "PathType",
     "PathTypes",
     "Route",
     "RouteFactory",
     "Routes",
-    "Strs",
     "Section",
-    "Any",
-    "Dict",
-    "List",
-    "Optional",
+    "Strs",
+    "WidthTypes",
     "Union",
+    "List",
     "Tuple",
+    "Dict",
 )
 
 
@@ -365,7 +399,7 @@ def write_schema(model: BaseModel = NetlistModel) -> None:
     schema_path_json.write_text(json.dumps(OmegaConf.to_container(d)))
 
 
-def _demo():
+def _demo() -> None:
     write_schema()
 
     import jsonschema

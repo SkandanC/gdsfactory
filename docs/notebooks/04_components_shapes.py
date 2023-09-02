@@ -1,17 +1,3 @@
-# ---
-# jupyter:
-#   jupytext:
-#     text_representation:
-#       extension: .py
-#       format_name: light
-#       format_version: '1.5'
-#       jupytext_version: 1.14.4
-#   kernelspec:
-#     display_name: Python 3 (ipykernel)
-#     language: python
-#     name: python3
-# ---
-
 # # Shapes and generic cells
 #
 # gdsfactory provides some generic parametric cells in `gf.components` that you can customize for your application.
@@ -26,10 +12,11 @@
 
 # +
 import gdsfactory as gf
+from gdsfactory.generic_tech import get_generic_pdk
 
 gf.config.rich_output()
 
-PDK = gf.get_generic_pdk()
+PDK = get_generic_pdk()
 PDK.activate()
 
 r1 = gf.components.rectangle(size=(4.5, 2), layer=(1, 0))
@@ -45,7 +32,7 @@ arc = c << gf.components.bend_circular(radius=10, width=0.5, angle=90, layer=(1,
 arc.rotate(90)
 # Draw a rectangle around the arc we created by using the arc's bounding box
 rect = c << gf.components.bbox(bbox=arc.bbox, layer=(0, 0))
-c
+c.plot()
 
 # ### Cross
 #
@@ -147,7 +134,7 @@ gf.components.text(
 D = gf.components.litho_steps(
     line_widths=[1, 2, 4, 8, 16], line_spacing=10, height=100, layer=(1, 0)
 )
-D
+D.plot()
 
 # ### Calipers (inter-layer alignment)
 
@@ -162,7 +149,7 @@ D = gf.components.litho_calipers(
     layer1=(1, 0),
     layer2=(2, 0),
 )
-D
+D.plot()
 
 # ## Paths
 #
@@ -193,6 +180,7 @@ f = P.plot()
 
 # +
 import numpy as np
+
 import gdsfactory as gf
 
 points = np.array([(20, 10), (40, 10), (20, 40), (50, 40), (50, 20), (70, 20)])
@@ -209,29 +197,29 @@ f = P.plot()
 # ### Delay spiral
 
 c = gf.components.spiral_double()
-c
+c.plot()
 
 c = gf.components.spiral_inner_io()
-c
+c.plot()
 
 c = gf.components.spiral_external_io()
-c
+c.plot()
 
 # ## Useful contact pads / connectors
 #
 # These functions are common shapes with ports, often used to make contact pads
 
 c = gf.components.compass(size=(4, 2), layer=(1, 0))
-c
+c.plot()
 
 c = gf.components.nxn(north=3, south=4, east=0, west=0)
-c
+c.plot()
 
 c = gf.components.pad()
-c
+c.plot()
 
 c = gf.components.pad_array90(columns=3)
-c
+c.plot()
 
 # ## Chip / die template
 
@@ -262,7 +250,7 @@ import gdsfactory as gf
 c = gf.components.optimal_hairpin(
     width=0.2, pitch=0.6, length=10, turn_ratio=4, num_pts=50, layer=(2, 0)
 )
-c
+c.plot()
 # -
 
 c = gf.c.optimal_step(
@@ -274,10 +262,10 @@ c = gf.c.optimal_step(
     symmetric=False,
     layer=(2, 0),
 )
-c
+c.plot()
 
 c = gf.c.optimal_90deg(width=100.0, num_pts=15, length_adjust=1, layer=(2, 0))
-c
+c.plot()
 
 c = gf.c.snspd(
     wire_width=0.2,
@@ -288,4 +276,4 @@ c = gf.c.snspd(
     terminals_same_side=False,
     layer=(2, 0),
 )
-c
+c.plot()

@@ -7,11 +7,8 @@ from gdsfactory.component import Component
 from gdsfactory.components.bend_euler import bend_euler
 from gdsfactory.components.bend_s import bend_s, get_min_sbend_size
 from gdsfactory.components.straight import straight
-from gdsfactory.typings import ComponentFactory, CrossSectionSpec, Floats, Optional
-from scipy.interpolate import interp1d
 from gdsfactory.routing.get_route import get_route
-
-# import matplotlib.pyplot as plt
+from gdsfactory.typings import ComponentFactory, CrossSectionSpec, Floats
 
 
 @gf.cell
@@ -23,8 +20,8 @@ def spiral_racetrack(
     bend_factory: ComponentFactory = bend_euler,
     bend_s_factory: ComponentFactory = bend_s,
     cross_section: CrossSectionSpec = "strip",
-    cross_section_s: CrossSectionSpec = None,
-    n_bend_points: Optional[int] = None,
+    cross_section_s: CrossSectionSpec | None = None,
+    n_bend_points: int | None = None,
     with_inner_ports: bool = False,
     extra_90_deg_bend: bool = False,
 ) -> Component:
@@ -123,8 +120,8 @@ def spiral_racetrack_fixed_length(
     bend_factory: ComponentFactory = bend_euler,
     bend_s_factory: ComponentFactory = bend_s,
     cross_section: CrossSectionSpec = "strip",
-    cross_section_s: CrossSectionSpec = None,
-    n_bend_points: Optional[int] = None,
+    cross_section_s: CrossSectionSpec | None = None,
+    n_bend_points: int | None = None,
     with_inner_ports: bool = False,
 ) -> Component:
     """Returns Racetrack-Spiral with a specified total length.
@@ -186,6 +183,8 @@ def spiral_racetrack_fixed_length(
     )
 
     c.info["length"] = spiral.info["length"]
+    c.info["straight_length"] = straight_length
+    c.info["spiral_center"] = spiral.center
 
     if spiral.ports["o1"].x > spiral.ports["o2"].x:
         spiral.mirror_x()
@@ -244,7 +243,7 @@ def _req_straight_len(
     bend_factory: ComponentFactory = bend_euler,
     bend_s_factory: ComponentFactory = bend_s,
     cross_section_s_bend: CrossSectionSpec = "strip",
-):
+) -> float:
     """Returns geometrical parameters to make a spiral of a given length.
 
     Args:
@@ -256,6 +255,7 @@ def _req_straight_len(
         bend_s_factory: factory to generate the s-bend segments.
         cross_section_s_bend: s bend cross section
     """
+    from scipy.interpolate import interp1d
 
     # "Brute force" approach - sweep length and save total length
 
@@ -316,18 +316,14 @@ def _req_straight_len(
 
         lens.append(c.info["length"])
 
-    # plt.plot(straight_lengths, lens)
-    # plt.show(block=True)
-
-    # Now get the required spacing to achieve the required length (interpolate)
+    # get the required spacing to achieve the required length (interpolate)
     f = interp1d(lens, straight_lengths)
-
     return f(length)
 
 
 @gf.cell
 def spiral_racetrack_heater_metal(
-    min_radius: Optional[float] = None,
+    min_radius: float | None = None,
     straight_length: float = 30,
     spacing: float = 2,
     num: int = 8,
@@ -397,7 +393,7 @@ def spiral_racetrack_heater_metal(
 
 @gf.cell
 def spiral_racetrack_heater_doped(
-    min_radius: Optional[float] = None,
+    min_radius: float | None = None,
     straight_length: float = 30,
     spacing: float = 2,
     num: int = 8,
@@ -460,31 +456,40 @@ def spiral_racetrack_heater_doped(
     return c
 
 
-def test_length_spiral_racetrack():
+def test_length_spiral_racetrack() -> None:
     import numpy as np
 
     length = 1000
     c = spiral_racetrack_fixed_length(length=length, cross_section="strip_no_pins")
     length_computed = c.area() / 0.5
     np.isclose(length, length_computed)
+
+
+@gf.cell
+def spiral_slab(cross_section="strip", layer_slab=(3, 0), cladding_offset=3, **kwargs):
+    xs = gf.get_cross_section(cross_section)
+    xs_slab = gf.CrossSection(layer=layer_slab, width=xs.width + cladding_offset)
+
+    c = gf.Component()
+
+    o = 2.5
+    s1 = spiral_racetrack(cross_section=cross_section, **kwargs)
+    s2 = (
+        spiral_racetrack(cross_section=xs_slab, **kwargs)
+        .offset(+o)
+        .offset(-o, layer=(2, 0))
+    )
+
+    ref = c << s1
+    c << s2
+
+    c.copy_child_info(s1)
+    c.add_ports(ref.ports)
     return c
 
 
 if __name__ == "__main__":
-    # heater = spiral_racetrack(
-    #     min_radius=3.0, straight_length=30.0, spacings=(2, 2, 3, 3, 2, 2)
-    # )
-    # heater.show()
+    # c = spiral_racetrack(cross_section="rib_conformal", cache=False)
 
-    # heater = spiral_racetrack_heater_metal(3, 30, 2, 5)
-    # heater.show()
-
-    # heater = spiral_racetrack_heater_doped(
-    #     min_radius=3, straight_length=30, spacing=2, num=8
-    # )
-    # heater.show()
-    # c = spiral_racetrack(with_inner_ports=True)
-    # c = spiral_racetrack_fixed_length(with_inner_ports=False)
-    # c = spiral_racetrack_heater_doped()
-    c = test_length_spiral_racetrack()
+    c = spiral_slab(cache=False)
     c.show(show_ports=True)

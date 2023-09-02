@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union
-
 import gdsfactory as gf
 from gdsfactory.components.bend_euler import bend_euler
 from gdsfactory.cross_section import strip
@@ -11,11 +9,11 @@ from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Routes
 
 
 def get_routes_bend180(
-    ports: Union[List[Port], Dict[str, Port]],
+    ports: list[Port] | dict[str, Port],
     bend: ComponentSpec = bend_euler,
     cross_section: CrossSectionSpec = strip,
-    bend_port1: Optional[str] = None,
-    bend_port2: Optional[str] = None,
+    bend_port1: str | None = None,
+    bend_port2: str | None = None,
     **kwargs,
 ) -> Routes:
     """Returns routes made by 180 degree bends.
@@ -51,7 +49,6 @@ def get_routes_bend180(
         )
         for route in routes:
             c.add(route.references)
-        c.show(show_ports=True)
         c.plot()
 
     """
@@ -69,7 +66,7 @@ def get_routes_bend180(
     return Routes(references=references, ports=ports, lengths=lengths)
 
 
-def test_get_routes_bend180():
+def test_get_routes_bend180() -> None:
     c = gf.Component("get_routes_bend180")
     pad_array = gf.components.pad_array(orientation=270)
     c1 = c << pad_array
@@ -91,7 +88,6 @@ def test_get_routes_bend180():
     for route in routes:
         c.add(route.references)
     difftest(c)
-    return c
 
 
 if __name__ == "__main__":

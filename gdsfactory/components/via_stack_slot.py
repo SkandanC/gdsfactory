@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional
+import warnings
+from functools import partial
 
 from numpy import floor
 
@@ -15,10 +16,10 @@ from gdsfactory.typings import ComponentSpec, Floats, LayerSpec, LayerSpecs
 def via_stack_slot(
     size=(11.0, 11.0),
     layers: LayerSpecs = ("M1", "M2"),
-    layer_offsets: Optional[Floats] = (0, 1.0),
-    layer_offsetsx: Optional[Floats] = None,
-    layer_offsetsy: Optional[Floats] = None,
-    layer_port: LayerSpec = None,
+    layer_offsets: Floats | None = (0, 1.0),
+    layer_offsetsx: Floats | None = None,
+    layer_offsetsy: Floats | None = None,
+    layer_port: LayerSpec | None = None,
     via: ComponentSpec = via1,
     enclosure: float = 1.0,
     ysize: float = 0.5,
@@ -31,7 +32,7 @@ def via_stack_slot(
         layers: layers on which to draw rectangles.
         layer_offsets: cladding_offset for each layer.
         layer_offsetsx: optional xoffset for layers, defaults to layer_offsets.
-        layer_offsetsx: optional yoffset for layers, defaults to layer_offsets.
+        layer_offsetsy: optional yoffset for layers, defaults to layer_offsets.
         layer_port: if None assumes port is on the last layer.
         via: via to use to fill the rectangles.
         enclosure: of the via by rectangle.
@@ -63,6 +64,7 @@ def via_stack_slot(
         |                  size[0]                |
         |                                         |
         |_________________________________________|
+
     """
     if size[0] - 2 * enclosure < 0:
         raise ValueError(
@@ -78,15 +80,25 @@ def via_stack_slot(
     c = Component()
     c.info["size"] = (float(size[0]), float(size[1]))
 
+    layer_offsets = layer_offsets or [0] * len(layers)
     layer_offsetsx = layer_offsetsx or layer_offsets
     layer_offsetsy = layer_offsetsy or layer_offsets
 
-    layer_offsetsx = list(layer_offsetsx) + [0] * len(layers)
-    layer_offsetsy = list(layer_offsetsy) + [0] * len(layers)
+    elements = {
+        len(layers),
+        len(layer_offsetsx),
+        len(layer_offsetsy),
+    }
+    if len(elements) > 1:
+        warnings.warn(
+            f"Got {len(layers)} layers, {len(layer_offsetsx)} layer_offsetsx, {len(layer_offsetsy)} layer_offsetsy."
+        )
 
     for layer, offsetx, offsety in zip(layers, layer_offsetsx, layer_offsetsy):
         ref = c << compass(
-            size=(size[0] + 2 * offsetx, size[1] + 2 * offsety), layer=layer
+            size=(size[0] + 2 * offsetx, size[1] + 2 * offsety),
+            layer=layer,
+            port_type="electrical",
         )
 
         if layer == layer_port:
@@ -102,13 +114,16 @@ def via_stack_slot(
     return c
 
 
-via_stack_slot_m1_m2 = gf.partial(via_stack_slot, layers=("M1", "M2"), via=via1)
+via_stack_slot_m1_m2 = partial(via_stack_slot, layers=("M1", "M2"), via=via1)
 
-via_stack_slot_slab_m1 = gf.partial(via_stack_slot, layers=("M1",), via=viac)
+via_stack_slot_slab_m1 = partial(
+    via_stack_slot, layers=("M1",), via=viac, layer_offsets=(0,)
+)
 
 
 if __name__ == "__main__":
+    c = via_stack_slot()
     # c = via_stack_slot_m1_m2(layer_offsets=(0.5, 1), enclosure=1, size=(3, 3))
     # c = via_stack_slot_m1_m2()
-    c = via_stack_slot_slab_m1()
+    # c = via_stack_slot_slab_m1()
     c.show(show_ports=True)

@@ -4,8 +4,6 @@ Adapted from PHIDL https://github.com/amccaugh/phidl/ by Adam McCaughan
 """
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 import numpy as np
 
 from gdsfactory.cell import cell
@@ -18,10 +16,10 @@ from gdsfactory.typings import Anchor, ComponentSpec, Float2
 
 @cell
 def grid(
-    components: Optional[Tuple[ComponentSpec, ...]] = None,
-    spacing: Tuple[float, float] = (5.0, 5.0),
+    components: tuple[ComponentSpec, ...] | None = None,
+    spacing: tuple[float, float] = (5.0, 5.0),
     separation: bool = True,
-    shape: Optional[Tuple[int, int]] = None,
+    shape: tuple[int, int] | None = None,
     align_x: str = "x",
     align_y: str = "y",
     edge_x: str = "x",
@@ -111,7 +109,7 @@ def grid(
 
     D = Component()
     ref_array = np.empty(device_array.shape, dtype=object)
-    dummy = Component("dummy")
+    dummy = Component()
     for idx, d in np.ndenumerate(device_array):
         if d is not None:
             d = d() if callable(d) else d
@@ -160,12 +158,14 @@ def grid(
 
 @cell
 def grid_with_text(
-    components: Optional[Tuple[ComponentSpec, ...]] = None,
+    components: tuple[ComponentSpec, ...] | None = None,
     text_prefix: str = "",
-    text_offsets: Tuple[Float2, ...] = ((0, 0),),
-    text_anchors: Tuple[Anchor, ...] = ("cc",),
-    text: Optional[ComponentSpec] = text_rectangular,
-    labels: Optional[Tuple[str, ...]] = None,
+    text_offsets: tuple[Float2, ...] = ((0, 0),),
+    text_anchors: tuple[Anchor, ...] = ("cc",),
+    text_mirror: bool = False,
+    text_rotation: int = 0,
+    text: ComponentSpec | None = text_rectangular,
+    labels: tuple[str, ...] | None = None,
     **kwargs,
 ) -> Component:
     """Returns Component with 1D or 2D grid of components with text labels.
@@ -175,6 +175,8 @@ def grid_with_text(
         text_prefix: for labels. For example. 'A' will produce 'A1', 'A2', ...
         text_offsets: relative to component anchor. Defaults to center.
         text_anchors: relative to component (ce cw nc ne nw sc se sw center cc).
+        text_mirror: if True mirrors text.
+        text_rotation: Optional text rotation.
         text: function to add text labels.
         labels: optional, specify a tuple of labels rather than using a text_prefix.
 
@@ -228,11 +230,15 @@ def grid_with_text(
                 else:
                     label = f"{text_prefix}{i}"
                 t = c << text(label)
+                if text_mirror:
+                    t.mirror()
+                if text_rotation:
+                    t.rotate(text_rotation)
                 t.move(np.array(text_offset) + getattr(ref.size_info, text_anchor))
     return c
 
 
-def test_grid() -> Component:
+def test_grid() -> None:
     import gdsfactory as gf
 
     c = [gf.components.straight(length=i) for i in [1, 1, 2]]
@@ -245,19 +251,19 @@ def test_grid() -> Component:
         spacing=(10, 10),
     )
     # assert np.isclose(c.ports["1_1_o1"].center[0], 13.0), c.ports["1_1_o1"].center[0]
-    return c
+    assert c
 
 
 if __name__ == "__main__":
-    c = test_grid()
-    # import gdsfactory as gf
+    # test_grid()
+    import gdsfactory as gf
 
     # components = [gf.components.rectangle(size=(i, i)) for i in range(40, 66, 5)]
     # components = [gf.components.rectangle(size=(i, i)) for i in range(40, 66, 5)]
     # c = [gf.components.triangle(x=i) for i in range(1, 10)]
     # print(len(c))
 
-    # c = [gf.components.straight(length=i) for i in range(1, 5)]
+    c = grid([gf.components.straight(length=i) for i in range(1, 5)])
     # c = grid(
     #     c,
     #     shape=(2, 2),

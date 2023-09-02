@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import numpy as np
 from numpy import ndarray
 
@@ -37,8 +35,8 @@ def bezier(
     control_points: Coordinates = ((0.0, 0.0), (5.0, 0.0), (5.0, 2.0), (10.0, 2.0)),
     npoints: int = 201,
     with_manhattan_facing_angles: bool = True,
-    start_angle: Optional[int] = None,
-    end_angle: Optional[int] = None,
+    start_angle: int | None = None,
+    end_angle: int | None = None,
     cross_section: CrossSectionSpec = "strip",
     with_bbox: bool = True,
     **kwargs,
@@ -70,13 +68,17 @@ def bezier(
     c.absorb(bend_ref)
     curv = curvature(path_points, t)
     length = gf.snap.snap_to_grid(path_length(path_points))
-    min_bend_radius = gf.snap.snap_to_grid(1 / max(np.abs(curv)))
+    if max(np.abs(curv)) == 0:
+        min_bend_radius = np.inf
+    else:
+        min_bend_radius = gf.snap.snap_to_grid(1 / max(np.abs(curv)))
+
     c.info["length"] = length
     c.info["min_bend_radius"] = min_bend_radius
     c.info["start_angle"] = path.start_angle
     c.info["end_angle"] = path.end_angle
 
-    if with_bbox:
+    if with_bbox and xs.bbox_layers:
         padding = []
         for offset in xs.bbox_offsets:
             points = get_padding_points(

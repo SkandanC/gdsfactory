@@ -1,13 +1,12 @@
 import warnings
-from typing import Optional, List
 
-from gdsfactory.component import Port, ComponentReference, Component
+from gdsfactory.component import Component, ComponentReference, Port
 from gdsfactory.typings import CrossSectionSpec
 
 
 def taper_to_cross_section(
     port: Port, cross_section: CrossSectionSpec
-) -> Optional[ComponentReference]:
+) -> ComponentReference | None:
     """Returns taper ComponentReference from a port to a given cross-section \
             placed so that it connects to the input port.
 
@@ -37,10 +36,10 @@ def taper_to_cross_section(
         c.plot()
     """
     from gdsfactory.pdk import (
-        get_cross_section,
         get_active_pdk,
-        get_layer,
         get_component,
+        get_cross_section,
+        get_layer,
     )
 
     port_layer = get_layer(port.layer)
@@ -72,7 +71,7 @@ def taper_to_cross_section(
     return ComponentReference(taper).connect(input_port_name, port)
 
 
-def _get_taper_io_port_names(component: Component) -> List[str]:
+def _get_taper_io_port_names(component: Component) -> list[str]:
     # this is kind of a hack, but o1 < o2, in0 < out0... hopefully nobody has any other wacky conventions!
     return sorted(component.ports.keys())
 

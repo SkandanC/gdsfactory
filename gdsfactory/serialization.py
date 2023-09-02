@@ -5,7 +5,8 @@ import functools
 import hashlib
 import inspect
 import pathlib
-from typing import Any, Dict
+from functools import partial
+from typing import Any
 
 import gdstk
 import numpy as np
@@ -14,16 +15,8 @@ import pydantic
 import toolz
 from omegaconf import DictConfig, OmegaConf
 
-DEFAULT_SERIALIZATION_MAX_DIGITS = 8
+DEFAULT_SERIALIZATION_MAX_DIGITS = 3
 """By default, the maximum number of digits retained when serializing float-like arrays"""
-
-
-def clean_dict(d: Dict[str, Any]) -> Dict[str, Any]:
-    """Cleans dictionary recursively."""
-    return {
-        k: clean_dict(dict(v)) if isinstance(v, dict) else clean_value_json(v)
-        for k, v in d.items()
-    }
 
 
 def get_string(value: Any) -> str:
@@ -37,12 +30,20 @@ def get_string(value: Any) -> str:
     return s
 
 
-def clean_value_json(value: Any) -> Any:
+def clean_dict(dictionary: dict) -> dict:
+    return {k: clean_value_json(v) for k, v in dictionary.items()}
+
+
+def clean_value_json(value: Any) -> str | int | float | dict | list | bool | None:
     """Return JSON serializable object."""
     from gdsfactory.path import Path
+    from gdsfactory.pdk import get_active_pdk
+
+    active_pdk = get_active_pdk()
+    include_module = active_pdk.cell_decorator_settings.include_module
 
     if isinstance(value, pydantic.BaseModel):
-        return value.dict()
+        return clean_dict(value.model_dump())
 
     elif hasattr(value, "get_component_spec"):
         return value.get_component_spec()
@@ -50,70 +51,75 @@ def clean_value_json(value: Any) -> Any:
     elif isinstance(value, bool):
         return value
 
-    elif isinstance(value, (np.integer, int)):
+    elif isinstance(value, np.integer | int):
         return int(value)
 
-    elif isinstance(value, (float, np.inexact, np.float64)):
-        return float(value)
+    elif isinstance(value, float | np.inexact | np.float64):
+        return float(np.round(value, DEFAULT_SERIALIZATION_MAX_DIGITS))
 
     elif isinstance(value, np.ndarray):
         value = np.round(value, DEFAULT_SERIALIZATION_MAX_DIGITS)
         return orjson.loads(orjson.dumps(value, option=orjson.OPT_SERIALIZE_NUMPY))
+
     elif callable(value) and isinstance(value, functools.partial):
         sig = inspect.signature(value.func)
         args_as_kwargs = dict(zip(sig.parameters.keys(), value.args))
-        args_as_kwargs.update(**value.keywords)
+        args_as_kwargs.update(value.keywords)
         args_as_kwargs = clean_dict(args_as_kwargs)
-        # args_as_kwargs.pop("function", None)
 
         func = value.func
         while hasattr(func, "func"):
             func = func.func
-        return {"function": func.__name__, "settings": args_as_kwargs}
+        v = {
+            "function": func.__name__,
+            "settings": args_as_kwargs,
+        }
+        if include_module:
+            v.update(module=func.__module__)
+        return v
 
     elif hasattr(value, "to_dict"):
-        return value.to_dict()
+        return clean_dict(value.to_dict())
+
     elif callable(value) and isinstance(value, toolz.functoolz.Compose):
-        value = [clean_value_json(value.first)] + [
+        return [clean_value_json(value.first)] + [
             clean_value_json(func) for func in value.funcs
         ]
-    elif callable(value) and hasattr(value, "__name__"):
-        value = {"function": value.__name__}
-    elif isinstance(value, Path):
-        value = value.hash_geometry()
-    elif isinstance(value, pathlib.Path):
-        value = value.stem
-    elif isinstance(value, dict):
-        value = clean_dict(value.copy())
-    elif isinstance(value, DictConfig):
-        value = clean_dict(OmegaConf.to_container(value))
 
-    elif isinstance(value, (list, tuple, set)):
-        value = [clean_value_json(i) for i in value]
+    elif callable(value) and hasattr(value, "__name__"):
+        return (
+            {"function": value.__name__, "module": value.__module__}
+            if include_module
+            else {"function": value.__name__}
+        )
+
+    elif isinstance(value, Path):
+        return value.hash_geometry()
+
+    elif isinstance(value, pathlib.Path):
+        return value.stem
+
+    elif isinstance(value, dict):
+        return clean_dict(value.copy())
+
+    elif isinstance(value, DictConfig):
+        return clean_dict(OmegaConf.to_container(value))
+
+    elif isinstance(value, list | tuple | set):
+        return [clean_value_json(i) for i in value]
 
     elif isinstance(value, gdstk.Polygon):
-        value = np.round(value.points, 3)
+        return np.round(value.points, DEFAULT_SERIALIZATION_MAX_DIGITS)
+
     else:
         try:
             value_json = orjson.dumps(
                 value, option=orjson.OPT_SERIALIZE_NUMPY, default=clean_value_json
             )
-            value = orjson.loads(value_json)
+            return orjson.loads(value_json)
         except TypeError as e:
             print(f"Error serializing {value!r}")
             raise e
-    return value
-
-    # elif isinstance(value, (tuple, list, ListConfig)):
-    #     value = [clean_value_json(i) for i in value]
-    # elif value is None:
-    #     value = None
-    # elif hasattr(value, "name"):
-    #     value = value.name
-    # elif hasattr(value, "get_name"):
-    #     value = value.get_name()
-    # else:
-    #     value = str(value)
 
 
 def clean_value_name(value: Any) -> str:
@@ -129,11 +135,21 @@ def get_hash(value: Any) -> str:
 if __name__ == "__main__":
     import gdsfactory as gf
 
-    # f = gf.partial(gf.c.straight, length=3)
+    # f = partial(gf.c.straight, length=3)
     # d = clean_value_json(f)
     # print(f"{d!r}")
+    # f = partial(gf.c.straight, length=3)
+    # c = f()
+    # d = clean_value_json(c)
+    # print(d, d)
 
-    f = gf.partial(gf.c.straight, length=3)
+    xs = partial(
+        gf.cross_section.strip,
+        width=3,
+        add_pins=gf.partial(gf.add_pins.add_pins_inside1nm, pin_length=0.1),
+    )
+    f = partial(gf.routing.add_fiber_array, cross_section=xs)
     c = f()
     d = clean_value_json(c)
+    print(get_hash(d))
     print(d, d)

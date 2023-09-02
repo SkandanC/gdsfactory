@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Tuple, Union
 
 from pydantic import BaseModel
 
 from gdsfactory.technology import LayerLevel, LayerStack
 
 module_path = pathlib.Path(__file__).parent.absolute()
-Layer = Tuple[int, int]
-LayerSpec = Union[int, Layer, str, None]
+Layer = tuple[int, int]
+LayerSpec = int | Layer | str | None
 nm = 1e-3
 
 
@@ -92,7 +91,7 @@ def get_layer_stack(
     return LayerStack(
         layers=dict(
             core=LayerLevel(
-                layer=LAYER.WG,
+                layer=(1, 0),
                 thickness=thickness_wg,
                 zmin=0.0,
                 material="si",
@@ -104,7 +103,7 @@ def get_layer_stack(
                 thickness=thickness_clad,
             ),
             slab150=LayerLevel(
-                layer=LAYER.SLAB150,
+                layer=(2, 0),
                 thickness=150e-3,
                 zmin=0,
                 material="si",

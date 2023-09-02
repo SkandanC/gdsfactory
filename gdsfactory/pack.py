@@ -6,10 +6,10 @@ Adapted from PHIDL https://github.com/amccaugh/phidl/ by Adam McCaughan
 from __future__ import annotations
 
 import warnings
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
-from pydantic import validate_arguments
+from pydantic import validate_call
 
 import gdsfactory as gf
 from gdsfactory.component import Component
@@ -18,12 +18,12 @@ from gdsfactory.typings import Anchor, ComponentSpec, Float2, Number
 
 
 def _pack_single_bin(
-    rect_dict: Dict[int, Tuple[Number, Number]],
-    aspect_ratio: Tuple[Number, Number],
-    max_size: Tuple[float, float],
+    rect_dict: dict[int, tuple[Number, Number]],
+    aspect_ratio: tuple[Number, Number],
+    max_size: tuple[float, float],
     sort_by_area: bool,
     density: float,
-) -> Tuple[Dict[int, Tuple[Number, Number, Number, Number]], Dict[Any, Any]]:
+) -> tuple[dict[int, tuple[Number, Number, Number, Number]], dict[Any, Any]]:
     """Packs a dict of rectangles {id:(w,h)} and tries to.
 
     Pack it into a bin as small as possible with aspect ratio `aspect_ratio`
@@ -89,26 +89,28 @@ def _pack_single_bin(
     return packed_rect_dict, unpacked_rect_dict
 
 
-@validate_arguments
+@validate_call
 def pack(
-    component_list: List[ComponentSpec],
+    component_list: list[ComponentSpec],
     spacing: float = 10.0,
     aspect_ratio: Float2 = (1.0, 1.0),
-    max_size: Tuple[Optional[float], Optional[float]] = (None, None),
+    max_size: tuple[float | None, float | None] = (None, None),
     sort_by_area: bool = True,
     density: float = 1.1,
     precision: float = 1e-2,
-    text: Optional[ComponentSpec] = None,
+    text: ComponentSpec | None = None,
     text_prefix: str = "",
-    text_offsets: Tuple[Float2, ...] = ((0, 0),),
-    text_anchors: Tuple[Anchor, ...] = ("cc",),
-    name_prefix: Optional[str] = None,
+    text_mirror: bool = False,
+    text_rotation: int = 0,
+    text_offsets: tuple[Float2, ...] = ((0, 0),),
+    text_anchors: tuple[Anchor, ...] = ("cc",),
+    name_prefix: str | None = None,
     rotation: int = 0,
     h_mirror: bool = False,
     v_mirror: bool = False,
     add_ports_prefix: bool = True,
     add_ports_suffix: bool = False,
-) -> List[Component]:
+) -> list[Component]:
     """Pack a list of components into as few Components as possible.
 
     Args:
@@ -121,11 +123,13 @@ def pack(
         precision: Desired precision for rounding vertex coordinates.
         text: Optional function to add text labels.
         text_prefix: for labels. For example. 'A' will produce 'A1', 'A2', ...
+        text_mirror: if True mirrors text.
+        text_rotation: Optional text rotation.
         text_offsets: relative to component size info anchor. Defaults to center.
         text_anchors: relative to component (ce cw nc ne nw sc se sw center cc).
         name_prefix: for each packed component (avoids the Unnamed cells warning).
             Note that the suffix contains a uuid so the name will not be deterministic.
-        rotation: for each component in degrees.
+        rotation: optional component rotation in degrees.
         h_mirror: horizontal mirror in y axis (x, 1) (1, 0). This is the most common.
         v_mirror: vertical mirror using x axis (1, y) (0, y).
         add_ports_prefix: adds port names with prefix.
@@ -135,13 +139,14 @@ def pack(
         :include-source:
 
         import gdsfactory as gf
+        from functools import partial
 
         components = [gf.components.triangle(x=i) for i in range(1, 10)]
         c = gf.pack(
             components,
             spacing=20.0,
             max_size=(100, 100),
-            text=gf.partial(gf.components.text, justify="center"),
+            text=partial(gf.components.text, justify="center"),
             text_prefix="R",
             name_prefix="demo",
             text_anchors=["nc"],
@@ -220,6 +225,10 @@ def pack(
             if text:
                 for text_offset, text_anchor in zip(text_offsets, text_anchors):
                     label = packed << text(f"{text_prefix}{index}")
+                    if text_mirror:
+                        label.mirror()
+                    if text_rotation:
+                        label.rotate(text_rotation)
                     label.move(
                         np.array(text_offset) + getattr(d.size_info, text_anchor)
                     )
@@ -233,7 +242,7 @@ def pack(
     return components_packed_list
 
 
-def test_pack() -> Component:
+def test_pack() -> None:
     """Test packing function."""
     component_list = [
         gf.components.ellipse(radii=tuple(np.random.rand(2) * n + 2)) for n in range(2)
@@ -252,10 +261,10 @@ def test_pack() -> Component:
     )
     c = components_packed_list[0]  # Only one bin was created, so we plot that
     assert len(c.get_dependencies()) == 4
-    return c
+    assert c
 
 
-def test_pack_with_settings() -> Component:
+def test_pack_with_settings() -> None:
     """Test packing function with custom settings."""
     component_list = [
         gf.components.rectangle(size=(i, i), port_type=None) for i in range(1, 10)
@@ -269,34 +278,44 @@ def test_pack_with_settings() -> Component:
         spacing=1.25,  # Minimum distance between adjacent shapes
         aspect_ratio=(2, 1),  # (width, height) ratio of the rectangular bin
         # max_size=(None, None),  # Limits the size into which the shapes will be packed
-        max_size=(20, 20),  # Limits the size into which the shapes will be packed
+        max_size=(100, 100),  # Limits the size into which the shapes will be packed
         density=1.05,  # Values closer to 1 pack tighter but require more computation
         sort_by_area=True,  # Pre-sorts the shapes by area
         precision=1e-3,
     )
-    return components_packed_list[0]
+    assert components_packed_list[0]
 
 
 if __name__ == "__main__":
     # test_pack()
+    component_list = [
+        gf.components.ellipse(radii=tuple(np.random.rand(2) * n + 2)) for n in range(2)
+    ]
+    component_list += [
+        gf.components.rectangle(size=tuple(np.random.rand(2) * n + 2)) for n in range(2)
+    ]
 
-    # c = test_pack_with_settings()
-    # c = test_pack()
-    # c.show(show_ports=True)
-    # c.pprint()
-    # c.write_gds_with_metadata("mask.gds")
-
-    p = pack(
-        [gf.components.straight(length=i) for i in [1, 1]],
-        spacing=20.0,
-        max_size=(100, 100),
-        text=gf.partial(gf.components.text, justify="center"),
-        text_prefix="R",
-        name_prefix="demo",
-        text_anchors=["nc"],
-        text_offsets=[(-10, 0)],
-        v_mirror=True,
+    components_packed_list = pack(
+        component_list,  # Must be a list or tuple of Components
+        spacing=1.25,  # Minimum distance between adjacent shapes
+        aspect_ratio=(2, 1),  # (width, height) ratio of the rectangular bin
+        max_size=(None, None),  # Limits the size into which the shapes will be packed
+        density=1.05,  # Values closer to 1 pack tighter but require more computation
+        sort_by_area=True,  # Pre-sorts the shapes by area
     )
-    c = p[0]
-    print(c.name)
+    c = components_packed_list[0]  # Only one bin was created, so we plot that
+
+    # p = pack(
+    #     [gf.components.straight(length=i) for i in [1, 1]],
+    #     spacing=20.0,
+    #     max_size=(100, 100),
+    #     text=partial(gf.components.text, justify="center"),
+    #     text_prefix="R",
+    #     name_prefix="demo",
+    #     text_anchors=["nc"],
+    #     text_offsets=[(-10, 0)],
+    #     text_mirror=True,
+    #     v_mirror=True,
+    # )
+    # c = p[0]
     c.show(show_ports=True)

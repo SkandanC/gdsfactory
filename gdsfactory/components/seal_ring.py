@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-from typing import Tuple, Union
+from functools import partial
 
 import gdsfactory as gf
 from gdsfactory.components.rectangle import rectangle
 from gdsfactory.components.via_stack import via_stack
 from gdsfactory.snap import snap_to_grid
 
-Coordinate = Union[Tuple[float, float], Tuple[int, int]]
+Float2 = tuple[float, float]
+Coordinate = tuple[Float2, Float2]
 
 
 @gf.cell_without_validator
 def seal_ring(
-    bbox: Tuple[Coordinate, Coordinate] = ((-1.0, -1.0), (3.0, 4.0)),
+    bbox: tuple[Coordinate, Coordinate] = ((-1.0, -1.0), (3.0, 4.0)),
     seal: gf.typings.ComponentSpec = via_stack,
     width: float = 10,
     padding: float = 10.0,
@@ -43,7 +44,7 @@ def seal_ring(
     sx = xmax - xmin
     sy = ymax - ymin
 
-    snap = gf.partial(snap_to_grid, nm=2)
+    snap = partial(snap_to_grid, nm=2)
     sx = snap(sx)
     sy = snap(sy)
 
@@ -78,7 +79,7 @@ def seal_ring(
 
 
 if __name__ == "__main__":
-    big_square = gf.partial(rectangle, size=(1300, 2600))
+    big_square = partial(rectangle, size=(1300, 2600))
     c = gf.Component("demo")
     c << big_square()
     c << seal_ring(c.bbox + ((0, 0), (10, 0)), with_south=False)

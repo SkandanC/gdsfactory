@@ -2,52 +2,58 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 import numpy as np
 
 import gdsfactory as gf
 from gdsfactory.components.text import text
-from gdsfactory.typings import LayerSpec
+from gdsfactory.typings import ComponentFactory, Float2, LayerSpec
 
 
 @gf.cell
 def die(
-    size: Tuple[float, float] = (10000.0, 10000.0),
+    size: tuple[float, float] = (10000.0, 10000.0),
     street_width: float = 100.0,
     street_length: float = 1000.0,
-    die_name: Optional[str] = "chip99",
+    die_name: str | None = "chip99",
     text_size: float = 100.0,
-    text_location: str = "SW",
-    layer: LayerSpec = "FLOORPLAN",
-    bbox_layer: Optional[LayerSpec] = "FLOORPLAN",
-    draw_corners: bool = True,
-    draw_dicing_lane: bool = True,
+    text_location: str | Float2 = "SW",
+    layer: LayerSpec | None = "FLOORPLAN",
+    bbox_layer: LayerSpec | None = "FLOORPLAN",
+    text: ComponentFactory = text,
+    draw_corners: bool = False,
 ) -> gf.Component:
-    """Returns basic die with 4 right angle corners marking the boundary of the.
-
-    chip/die and a label with the name of the die.
+    """Returns die with optional markers marking the boundary of the die.
 
     Args:
         size: x, y dimensions of the die.
         street_width: Width of the corner marks for die-sawing.
         street_length: Length of the corner marks for die-sawing.
-        die_name: Label text.
+        die_name: Label text. If None, no label is added.
         text_size: Label text size.
-        text_location: {'NW', 'N', 'NE', 'SW', 'S', 'SE'} Label text compass location.
-        layer: Specific layer to put polygon geometry on.
-        bbox_layer: optional bbox layer.
-        draw_corners: around die.
-        draw_dicing_lane: around die.
+        text_location: {'NW', 'N', 'NE', 'SW', 'S', 'SE'} or (x, y) coordinate.
+        layer: For street widths. None to not draw the street widths.
+        bbox_layer: optional bbox layer drawn bounding box around the die.
+        text: function use for generating text. Needs to accept text, size, layer.
+        draw_corners: True draws only corners. False draws a square die.
     """
-    c = gf.Component(name="die")
+    c = gf.Component()
     sx, sy = size[0] / 2, size[1] / 2
 
-    if draw_dicing_lane:
-        street_length = sy
-
-    if draw_corners or draw_dicing_lane:
-        xpts = np.array([sx, sx, sx - street_width, sx - street_width, 0, 0])
+    if layer:
+        if not draw_corners:
+            street_length = sx
+        xpts = np.array(
+            [
+                sx,
+                sx,
+                sx - street_width,
+                sx - street_width,
+                sx - street_length,
+                sx - street_length,
+            ]
+        )
+        if not draw_corners:
+            street_length = sy
         ypts = np.array(
             [
                 sy,
@@ -70,7 +76,7 @@ def die(
         t = c.add_ref(text(text=die_name, size=text_size, layer=layer))
 
         d = street_width + 20
-        if type(text_location) is str:
+        if isinstance(text_location, str):
             text_location = text_location.upper()
             if text_location == "N":
                 t.x, t.ymax = [0, sy - d]
@@ -84,6 +90,10 @@ def die(
                 t.xmax, t.ymin = [sx - d, -sy + d]
             elif text_location == "SW":
                 t.xmin, t.ymin = [-sx + d, -sy + d]
+            else:
+                raise ValueError(
+                    f"Invalid text_location: {text_location} not in N, NE, NW, S, SE, SW"
+                )
         else:
             t.x, t.y = text_location
 
@@ -93,7 +103,7 @@ def die(
 if __name__ == "__main__":
     # c = die(size=(3000, 5000), draw_dicing_lane=True)
     # c = die()
-    c = gf.components.die(
+    c = die(
         size=(13000, 3000),  # Size of die
         street_width=100,  # Width of corner marks for die-sawing
         street_length=1000,  # Length of corner marks for die-sawing
@@ -101,7 +111,8 @@ if __name__ == "__main__":
         text_size=500,  # Label text size
         text_location="SW",  # Label text compass location e.g. 'S', 'SE', 'SW'
         layer=(2, 0),
-        bbox_layer=(3, 0),
+        # bbox_layer=(3, 0),
+        # bbox_layer=None,
     )
     c.show()
     # c.show(show_ports=True)

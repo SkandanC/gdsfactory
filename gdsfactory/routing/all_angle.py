@@ -1,26 +1,26 @@
 import warnings
-from typing import List, Optional, Callable
+from collections.abc import Callable
 
 import numpy as np
 import shapely.geometry as sg
-from gdsfactory.component import Port, ComponentReference, Component
-from gdsfactory.path import Path
+
+from gdsfactory.component import Component, ComponentReference, Port
+from gdsfactory.components.straight import straight
 from gdsfactory.generic_tech.layer_map import LAYER
 from gdsfactory.get_netlist import difference_between_angles
-from gdsfactory.typings import CrossSectionSpec, Route, ComponentSpec, StepAllAngle
-from gdsfactory.typings import STEP_DIRECTIVES_ALL_ANGLE as STEP_DIRECTIVES
+from gdsfactory.path import Path, extrude
 from gdsfactory.routing.auto_taper import (
-    taper_to_cross_section,
     _get_taper_io_port_names,
+    taper_to_cross_section,
 )
-from gdsfactory.path import extrude
-
+from gdsfactory.typings import STEP_DIRECTIVES_ALL_ANGLE as STEP_DIRECTIVES
+from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Route, StepAllAngle
 
 BEND_PATH_FUNCS = {
     # 'euler_bend': euler_path,
 }
 
-Connector = Callable[..., List[ComponentReference]]
+Connector = Callable[..., list[ComponentReference]]
 
 
 def get_connector(name: str) -> Connector:
@@ -28,7 +28,7 @@ def get_connector(name: str) -> Connector:
     Gets a connector function by name.
 
     Args:
-        name: the name of the connector function to retrieve
+        name: the name of the connector function to retrieve.
 
     Returns:
         The specified connector function.
@@ -44,7 +44,7 @@ def get_connector(name: str) -> Connector:
 
 def vector_intersection(
     p0, a0, p1, a1, max_distance=100000, raise_error=True
-) -> Optional[np.ndarray]:
+) -> np.ndarray | None:
     """
     Gets the intersection point between two vectors, specified by (point, angle) pairs, (p0, a0) and (p1, a1).
 
@@ -108,7 +108,7 @@ def _get_bend_ports(bend):
 
 
 LOW_LOSS_CROSS_SECTIONS = [
-    {"cross_section": "strip", "settings": {"width": 1.0}},
+    {"cross_section": "strip", "settings": {"width": 0.9}},
     "strip",
 ]
 
@@ -116,9 +116,9 @@ LOW_LOSS_CROSS_SECTIONS = [
 def low_loss_connector(
     port1: Port,
     port2: Port,
-    prioritized_cross_sections: Optional[List[CrossSectionSpec]] = None,
+    prioritized_cross_sections: list[CrossSectionSpec] | None = None,
     **kwargs,
-) -> List[ComponentReference]:
+) -> list[ComponentReference]:
     """
     Routes between two ports, using the lowest-loss cross-section which will fit.
 
@@ -203,16 +203,17 @@ def _make_error_trace(port1: Port, port2: Port, message: str):
 
 def straight_connector(
     port1: Port, port2: Port, cross_section: CrossSectionSpec = "strip"
-) -> List[ComponentReference]:
+) -> list[ComponentReference]:
     """
     Connects between the two ports with a straight of the given cross-section.
 
     Args:
-        port1: the starting port
-        port2: the ending port
-        cross_section: the cross-section to use
+        port1: the starting port.
+        port2: the ending port.
+        cross_section: the cross-section to use.
+
     Returns:
-        A list of component references comprising the connection
+        A list of component references comprising the connection.
     """
     if np.array_equal(port1.center, port2.center):
         return []
@@ -225,10 +226,10 @@ def straight_connector(
             message=f"Not enough room to route between ports: {port1} and {port2}",
         )
 
-    straight_component = extrude(path, cross_section=cross_section)
-    # straight_component = get_component(straight, length=distance, cross_section=cross_section)
+    length = np.linalg.norm(port1.center - port2.center)
+    straight_component = straight(length=length, cross_section=cross_section)
     straight_ref = ComponentReference(straight_component)
-    # straight_ref.connect('in0', port1)
+    straight_ref.connect(list(straight_component.ports.keys())[0], port1)
     return [straight_ref]
 
 
@@ -237,17 +238,18 @@ def auto_taper_connector(
     port2: Port,
     cross_section: CrossSectionSpec = "strip",
     inner_connector: Connector = straight_connector,
-) -> List[ComponentReference]:
+) -> list[ComponentReference]:
     """
     Connects the two ports with a straight in the specified cross_section, adding tapers at either end if necessary.
 
     Args:
-        port1: the first port
-        port2: the final port
-        cross_section: the primary cross section to use for the route
-        inner_connector: the connector to use after attaching tapers
+        port1: the first port.
+        port2: the final port.
+        cross_section: the primary cross section to use for the route.
+        inner_connector: the connector to use after attaching tapers.
+
     Returns:
-        A list of references comprising the connection
+        A list of references comprising the connection.
     """
     taper1 = taper_to_cross_section(port1, cross_section)
     taper2 = taper_to_cross_section(port2, cross_section)
@@ -320,12 +322,10 @@ def _all_angle_connector(
     bend: ComponentSpec = "euler_bend",
     cross_section: CrossSectionSpec = "strip",
     connector1: Connector = straight_connector,
-    cross_section1: Optional[CrossSectionSpec] = None,
+    cross_section1: CrossSectionSpec | None = None,
     connector2: Connector = straight_connector,
-    cross_section2: Optional[CrossSectionSpec] = None,
-    report_segment_separation: Optional[
-        Callable[[List[ComponentReference]], None]
-    ] = None,
+    cross_section2: CrossSectionSpec | None = None,
+    report_segment_separation: Callable[[list[ComponentReference]], None] | None = None,
 ):
     if cross_section1 is None:
         cross_section1 = cross_section
@@ -414,6 +414,7 @@ def _get_bend(
 def _get_bend_angles(p0, p1, a0, a1, bend):
     """get the direct line between the two points."""
     import scipy.optimize
+
     from gdsfactory.pdk import get_component
 
     a_connect = np.arctan2(p1[1] - p0[1], p1[0] - p0[0])
@@ -455,7 +456,7 @@ def _get_bend_angles(p0, p1, a0, a1, bend):
     return bend_angle_0, bend_angle_1
 
 
-def _get_minimum_separation(refs: List[ComponentReference], *ports) -> float:
+def _get_minimum_separation(refs: list[ComponentReference], *ports) -> float:
     all_ports = [p for ref in refs for p in ref.ports.values()]
     all_ports.extend(ports)
     max_specified_separation = 0
@@ -484,19 +485,19 @@ def _angles_approx_opposing(angle1: float, angle2: float, tolerance: float = 1e-
 
 
 def get_bundle_all_angle(
-    ports1: List[Port],
-    ports2: List[Port],
-    steps: Optional[List[StepAllAngle]] = None,
+    ports1: list[Port],
+    ports2: list[Port],
+    steps: list[StepAllAngle] | None = None,
     cross_section: CrossSectionSpec = "strip",
     bend: ComponentSpec = "bend_euler",
     connector: str = "low_loss",
-    start_angle: Optional[float] = None,
-    end_angle: Optional[float] = None,
-    end_connector: Optional[str] = None,
-    end_cross_section: Optional[CrossSectionSpec] = None,
-    separation: Optional[float] = None,
+    start_angle: float | None = None,
+    end_angle: float | None = None,
+    end_connector: str | None = None,
+    end_cross_section: CrossSectionSpec | None = None,
+    separation: float | None = None,
     **kwargs,
-) -> List[Route]:
+) -> list[Route]:
     """Connects a bundle of ports, allowing steps which create waypoints at \
             arbitrary, non-manhattan angles.
 
@@ -888,7 +889,7 @@ def get_bundle_all_angle(
             )
             report_segment_separation = None
 
-            def _report_separations_w_steps(refs):
+            def _report_separations_w_steps(refs) -> None:
                 segment_separations.append(_get_minimum_separation(refs))
 
             if steps:
@@ -915,7 +916,11 @@ def get_bundle_all_angle(
             this_separation = _get_minimum_separation(final_connection, port1)
             segment_separations.append(this_separation)
         route_length = sum(r.info["length"] for r in route_refs)
-        route = Route(references=route_refs, ports=(port1, port2), length=route_length)
+        route = Route(
+            references=route_refs,
+            ports=(port1, port2),
+            length=np.round(route_length, 3),
+        )
         routes.append(route)
         is_primary_route = False
     return routes
@@ -924,20 +929,28 @@ def get_bundle_all_angle(
 if __name__ == "__main__":
     import gdsfactory as gf
 
-    c = gf.Component("demo")
+    @gf.cell
+    def demo_issue() -> gf.Component:
+        c = gf.Component()
 
-    mmi = gf.components.mmi2x2(width_mmi=10, gap_mmi=3)
-    mmi1 = c << mmi
-    mmi2 = c << mmi
+        mmi = gf.components.mmi2x2(width_mmi=10, gap_mmi=3)
+        mmi1 = c << mmi
+        mmi2 = c << mmi
 
-    mmi2.move((100, 30))
-    mmi2.rotate(30)
+        mmi2.move((100, 30))
+        mmi2.rotate(30)
 
-    routes = gf.routing.get_bundle_all_angle(
-        mmi1.get_ports_list(orientation=0),
-        [mmi2.ports["o2"], mmi2.ports["o1"]],
-        connector=None,
-    )
-    for route in routes:
-        c.add(route.references)
+        routes = gf.routing.get_bundle_all_angle(
+            mmi1.get_ports_list(orientation=0),
+            [mmi2.ports["o2"], mmi2.ports["o1"]],
+            connector=None,
+        )
+        for route in routes:
+            c.add(route.references)
+
+        return c
+
+    # c = demo_issue(decorator=gf.decorators.flatten_invalid_refs)
+    c = demo_issue()
+    c = c.flatten_invalid_refs()
     c.show()

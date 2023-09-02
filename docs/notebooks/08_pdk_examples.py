@@ -1,6 +1,7 @@
 # ---
 # jupyter:
 #   jupytext:
+#     cell_metadata_filter: -all
 #     custom_cell_magics: kql
 #     text_representation:
 #       extension: .py
@@ -8,7 +9,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: Python 3 (ipykernel)
+#     display_name: base
 #     language: python
 #     name: python3
 # ---
@@ -23,55 +24,45 @@
 # Notice that some PDKs may have require different gdsfactory versions.
 
 # %%
-import pathlib
-from typing import Callable, Tuple
+from collections.abc import Callable
+from functools import partial
 
-import pytest
 from pydantic import BaseModel
-from pytest_regressions.data_regression import DataRegressionFixture
 
+import gdsfactory as gf
 from gdsfactory.add_pins import add_pin_rectangle_inside
 from gdsfactory.component import Component
-from gdsfactory.config import PATH
+from gdsfactory.config import CONF
 from gdsfactory.cross_section import cross_section
-from gdsfactory.decorators import flatten_invalid_refs, has_valid_transformations
-from gdsfactory.difftest import difftest
-from gdsfactory.generic_tech import get_generic_pdk
 from gdsfactory.technology import (
     LayerLevel,
     LayerStack,
     LayerView,
     LayerViews,
-    lyp_to_dataclass,
 )
-from gdsfactory.typings import Layer, LayerSpec
-
-import gdsfactory as gf
+from gdsfactory.typings import Layer
+from gdsfactory.config import print_version_pdks, print_version_plugins
+from gdsfactory.generic_tech import get_generic_pdk
 
 gf.config.rich_output()
 nm = 1e-3
 
-gf.config.print_version()
 
 # %%
-gf.config.print_version_pdks()
+CONF.display_type = "klayout"
 
-# %%
 p = gf.get_active_pdk()
 p.name
 
-
 # %% [markdown]
-#
 # ### FabA
 #
 # FabA only has one waveguide layer available that is defined in GDS layer (30, 0)
 #
 # The waveguide traces are 2um wide.
 
-# %% tags=[]
 
-
+# %%
 class LayerMap(BaseModel):
     WG: Layer = (34, 0)
     SLAB150: Layer = (2, 0)
@@ -87,12 +78,12 @@ LAYER = LayerMap()
 
 
 class FabALayerViews(LayerViews):
-    WG = LayerView(color="gold")
-    SLAB150 = LayerView(color="red")
-    TE = LayerView(color="green")
+    WG: LayerView = LayerView(color="gold")
+    SLAB150: LayerView = LayerView(color="red")
+    TE: LayerView = LayerView(color="green")
 
 
-LAYER_VIEWS = FabALayerViews(layer_map=LAYER.dict())
+LAYER_VIEWS = FabALayerViews(layer_map=dict(LAYER))
 
 
 def get_layer_stack_faba(
@@ -100,21 +91,22 @@ def get_layer_stack_faba(
 ) -> LayerStack:
     """Returns fabA LayerStack"""
 
-    class FabALayerStack(LayerStack):
-        strip = LayerLevel(
-            layer=LAYER.WG,
-            thickness=thickness_wg,
-            zmin=0.0,
-            material="si",
+    return LayerStack(
+        layers=dict(
+            strip=LayerLevel(
+                layer=LAYER.WG,
+                thickness=thickness_wg,
+                zmin=0.0,
+                material="si",
+            ),
+            strip2=LayerLevel(
+                layer=LAYER.SLAB150,
+                thickness=thickness_slab,
+                zmin=0.0,
+                material="si",
+            ),
         )
-        strip2 = LayerLevel(
-            layer=LAYER.SLAB150,
-            thickness=thickness_slab,
-            zmin=0.0,
-            material="si",
-        )
-
-    return FabALayerStack()
+    )
 
 
 LAYER_STACK = get_layer_stack_faba()
@@ -122,9 +114,9 @@ LAYER_STACK = get_layer_stack_faba()
 WIDTH = 2
 
 # Specify a cross_section to use
-strip = gf.partial(gf.cross_section.cross_section, width=WIDTH, layer=LAYER.WG)
+strip = partial(gf.cross_section.cross_section, width=WIDTH, layer=LAYER.WG)
 
-mmi1x2 = gf.partial(
+mmi1x2 = partial(
     gf.components.mmi1x2,
     width=WIDTH,
     width_taper=WIDTH,
@@ -132,21 +124,20 @@ mmi1x2 = gf.partial(
     cross_section=strip,
 )
 
-generic_pdk = gf.generic_tech.get_generic_pdk()
+generic_pdk = get_generic_pdk()
 
 fab_a = gf.Pdk(
     name="Fab_A",
     cells=dict(mmi1x2=mmi1x2),
     cross_sections=dict(strip=strip),
-    layers=LAYER.dict(),
+    layers=dict(LAYER),
     base_pdk=generic_pdk,
-    sparameters_path=gf.config.sparameters_path,
     layer_views=LAYER_VIEWS,
     layer_stack=LAYER_STACK,
 )
 fab_a.activate()
 
-gc = gf.partial(
+gc = partial(
     gf.components.grating_coupler_elliptical_te, layer=LAYER.WG, cross_section=strip
 )
 
@@ -154,9 +145,9 @@ c = gf.components.mzi()
 c_gc = gf.routing.add_fiber_array(component=c, grating_coupler=gc, with_loopback=False)
 c_gc.plot()
 
-# %% tags=[]
-c = c_gc.to_3d()
-c.show(show_ports=True)
+# %%
+scene = c_gc.to_3d()
+scene.show()
 
 # %% [markdown]
 # ### FabB
@@ -166,7 +157,7 @@ c.show(show_ports=True)
 # Lets say that the waveguides are defined in layer (2, 0) and are 0.3um wide, 1um thick
 #
 
-# %% tags=[]
+# %%
 nm = 1e-3
 
 
@@ -190,16 +181,16 @@ LAYER = LayerMap()
 # The LayerViews class supports grouping LayerViews within each other.
 # These groups are maintained when exporting a LayerViews object to a KLayout layer properties (.lyp) file.
 class FabBLayerViews(LayerViews):
-    WG = LayerView(color="red")
-    SLAB150 = LayerView(color="blue")
-    TE = LayerView(color="green")
-    PORT = LayerView(color="green", alpha=0)
+    WG: LayerView = LayerView(color="red")
+    SLAB150: LayerView = LayerView(color="blue")
+    TE: LayerView = LayerView(color="green")
+    PORT: LayerView = LayerView(color="green", alpha=0)
 
     class DopingBlockGroup(LayerView):
-        DOPING_BLOCK1 = LayerView(color="green", alpha=0)
-        DOPING_BLOCK2 = LayerView(color="green", alpha=0)
+        DOPING_BLOCK1: LayerView = LayerView(color="green", alpha=0)
+        DOPING_BLOCK2: LayerView = LayerView(color="green", alpha=0)
 
-    DopingBlocks = DopingBlockGroup()
+    DopingBlocks: LayerView = DopingBlockGroup()
 
 
 LAYER_VIEWS = FabBLayerViews(layer_map=LAYER)
@@ -210,21 +201,22 @@ def get_layer_stack_fab_b(
 ) -> LayerStack:
     """Returns fabA LayerStack."""
 
-    class FabBLayerStack(LayerStack):
-        strip = LayerLevel(
-            layer=LAYER.WG,
-            thickness=thickness_wg,
-            zmin=0.0,
-            material="si",
+    return LayerStack(
+        layers=dict(
+            strip=LayerLevel(
+                layer=LAYER.WG,
+                thickness=thickness_wg,
+                zmin=0.0,
+                material="si",
+            ),
+            strip2=LayerLevel(
+                layer=LAYER.SLAB150,
+                thickness=thickness_slab,
+                zmin=0.0,
+                material="si",
+            ),
         )
-        strip2 = LayerLevel(
-            layer=LAYER.SLAB150,
-            thickness=thickness_slab,
-            zmin=0.0,
-            material="si",
-        )
-
-    return FabBLayerStack()
+    )
 
 
 LAYER_STACK = get_layer_stack_fab_b()
@@ -236,7 +228,7 @@ BBOX_OFFSETS = (3, 3)
 
 # use cladding_layers and cladding_offsets if the foundry prefers conformal blocking doping layers instead of squared
 # bbox_layers and bbox_offsets makes rectangular waveguides.
-strip = gf.partial(
+strip = partial(
     gf.cross_section.cross_section,
     width=WIDTH,
     layer=LAYER.WG,
@@ -246,17 +238,17 @@ strip = gf.partial(
     cladding_offsets=BBOX_OFFSETS,
 )
 
-straight = gf.partial(gf.components.straight, cross_section=strip)
-bend_euler = gf.partial(gf.components.bend_euler, cross_section=strip)
-mmi1x2 = gf.partial(
+straight = partial(gf.components.straight, cross_section=strip)
+bend_euler = partial(gf.components.bend_euler, cross_section=strip)
+mmi1x2 = partial(
     gf.components.mmi1x2,
     cross_section=strip,
     width=WIDTH,
     width_taper=WIDTH,
     width_mmi=4 * WIDTH,
 )
-mzi = gf.partial(gf.components.mzi, cross_section=strip, splitter=mmi1x2)
-gc = gf.partial(
+mzi = partial(gf.components.mzi, cross_section=strip, splitter=mmi1x2)
+gc = partial(
     gf.components.grating_coupler_elliptical_te, layer=LAYER.WG, cross_section=strip
 )
 
@@ -274,7 +266,7 @@ pdk = gf.Pdk(
     name="fab_b",
     cells=cells,
     cross_sections=cross_sections,
-    layers=LAYER.dict(),
+    layers=dict(LAYER),
     sparameters_path=gf.config.sparameters_path,
     layer_views=LAYER_VIEWS,
     layer_stack=LAYER_STACK,
@@ -288,9 +280,9 @@ wg_gc = gf.routing.add_fiber_array(
 )
 wg_gc.plot()
 
-# %% tags=[]
-c = wg_gc.to_3d()
-c.show(show_ports=True)
+# %%
+scene = wg_gc.to_3d()
+scene.show()
 
 # %% [markdown]
 # ### FabC
@@ -298,7 +290,7 @@ c.show(show_ports=True)
 # Lets assume that fab C has similar technology to the generic PDK in gdsfactory and that you just want to remap some layers, and adjust the widths.
 #
 
-# %% tags=[]
+# %%
 nm = 1e-3
 
 
@@ -325,22 +317,22 @@ PORT_TYPE_TO_LAYER = dict(optical=(100, 0))
 
 # This is something you usually define in KLayout
 class FabCLayerViews(LayerViews):
-    WG = LayerView(color="black")
-    SLAB150 = LayerView(color="blue")
-    WGN = LayerView(color="orange")
-    WGN_CLAD = LayerView(color="blue", alpha=0, visible=False)
+    WG: LayerView = LayerView(color="black")
+    SLAB150: LayerView = LayerView(color="blue")
+    WGN: LayerView = LayerView(color="orange")
+    WGN_CLAD: LayerView = LayerView(color="blue", alpha=0, visible=False)
 
     class SimulationGroup(LayerView):
-        TE = LayerView(color="green")
-        PORT = LayerView(color="green", alpha=0)
+        TE: LayerView = LayerView(color="green")
+        PORT: LayerView = LayerView(color="green", alpha=0)
 
-    Simulation = SimulationGroup()
+    Simulation: LayerView = SimulationGroup()
 
     class DopingGroup(LayerView):
-        DOPING_BLOCK1 = LayerView(color="green", alpha=0, visible=False)
-        DOPING_BLOCK2 = LayerView(color="green", alpha=0, visible=False)
+        DOPING_BLOCK1: LayerView = LayerView(color="green", alpha=0, visible=False)
+        DOPING_BLOCK2: LayerView = LayerView(color="green", alpha=0, visible=False)
 
-    Doping = DopingGroup()
+    Doping: LayerView = DopingGroup()
 
 
 LAYER_VIEWS = FabCLayerViews(layer_map=LAYER)
@@ -351,19 +343,20 @@ def get_layer_stack_fab_c(
 ) -> LayerStack:
     """Returns generic LayerStack"""
 
-    class FabCLayerStack(LayerStack):
-        core = LayerLevel(
-            layer=LAYER.WGN,
-            thickness=thickness_wg,
-            zmin=0,
+    return LayerStack(
+        layers=dict(
+            core=LayerLevel(
+                layer=LAYER.WGN,
+                thickness=thickness_wg,
+                zmin=0,
+            ),
+            clad=LayerLevel(
+                layer=LAYER.WGN_CLAD,
+                thickness=thickness_clad,
+                zmin=0,
+            ),
         )
-        clad = LayerLevel(
-            layer=LAYER.WGN_CLAD,
-            thickness=thickness_clad,
-            zmin=0,
-        )
-
-    return FabCLayerStack()
+    )
 
 
 LAYER_STACK = get_layer_stack_fab_c()
@@ -402,7 +395,7 @@ bbox_layers = [LAYER.WGN_CLAD]
 bbox_offsets = [3]
 
 # Nitride Cband
-xs_nc = gf.partial(
+xs_nc = partial(
     cross_section,
     width=WIDTH_NITRIDE_CBAND,
     layer=LAYER.WGN,
@@ -411,7 +404,7 @@ xs_nc = gf.partial(
     add_pins=add_pins,
 )
 # Nitride Oband
-xs_no = gf.partial(
+xs_no = partial(
     cross_section,
     width=WIDTH_NITRIDE_OBAND,
     layer=LAYER.WGN,
@@ -424,34 +417,34 @@ xs_no = gf.partial(
 cross_sections = dict(xs_nc=xs_nc, xs_no=xs_no, strip=xs_nc)
 
 # LEAF cells have pins
-mmi1x2_nc = gf.partial(
+mmi1x2_nc = partial(
     gf.components.mmi1x2,
     width=WIDTH_NITRIDE_CBAND,
     cross_section=xs_nc,
 )
-mmi1x2_no = gf.partial(
+mmi1x2_no = partial(
     gf.components.mmi1x2,
     width=WIDTH_NITRIDE_OBAND,
     cross_section=xs_no,
 )
-bend_euler_nc = gf.partial(
+bend_euler_nc = partial(
     gf.components.bend_euler,
     cross_section=xs_nc,
 )
-straight_nc = gf.partial(
+straight_nc = partial(
     gf.components.straight,
     cross_section=xs_nc,
 )
-bend_euler_no = gf.partial(
+bend_euler_no = partial(
     gf.components.bend_euler,
     cross_section=xs_no,
 )
-straight_no = gf.partial(
+straight_no = partial(
     gf.components.straight,
     cross_section=xs_no,
 )
 
-gc_nc = gf.partial(
+gc_nc = partial(
     gf.components.grating_coupler_elliptical_te,
     grating_line_width=0.6,
     layer=LAYER.WGN,
@@ -459,14 +452,14 @@ gc_nc = gf.partial(
 )
 
 # HIERARCHICAL cells are made of leaf cells
-mzi_nc = gf.partial(
+mzi_nc = partial(
     gf.components.mzi,
     cross_section=xs_nc,
     splitter=mmi1x2_nc,
     straight=straight_nc,
     bend=bend_euler_nc,
 )
-mzi_no = gf.partial(
+mzi_no = partial(
     gf.components.mzi,
     cross_section=xs_no,
     splitter=mmi1x2_no,
@@ -491,7 +484,7 @@ pdk = gf.Pdk(
     name="fab_c",
     cells=cells,
     cross_sections=cross_sections,
-    layers=LAYER.dict(),
+    layers=dict(LAYER),
     sparameters_path=gf.config.sparameters_path,
     layer_views=LAYER_VIEWS,
     layer_stack=LAYER_STACK,
@@ -499,10 +492,10 @@ pdk = gf.Pdk(
 pdk.activate()
 
 
-# %% tags=[]
+# %%
 LAYER_VIEWS.layer_map.values()
 
-# %% tags=[]
+# %%
 mzi = mzi_nc()
 mzi_gc = gf.routing.add_fiber_single(
     component=mzi,
@@ -514,9 +507,9 @@ mzi_gc = gf.routing.add_fiber_single(
 )
 mzi_gc.plot()
 
-# %% tags=[]
+# %%
 c = mzi_gc.to_3d()
-c.show(show_ports=True)
+c.show()
 
-# %% tags=[]
+# %%
 ls = get_layer_stack_fab_c()

@@ -1,10 +1,11 @@
+"""Write GDS with sample errors."""
 from __future__ import annotations
 
 import gdsfactory as gf
 from gdsfactory.component import Component
 from gdsfactory.typings import Float2, Layer
 
-layer = gf.LAYER.WG
+layer = (1, 0)
 
 
 @gf.cell
@@ -30,7 +31,7 @@ def gap_min(gap: float = 0.1) -> Component:
 
 @gf.cell
 def separation(
-    gap: float = 0.1, layer1: Layer = gf.LAYER.HEATER, layer2: Layer = gf.LAYER.M1
+    gap: float = 0.1, layer1: Layer = (47, 0), layer2: Layer = (41, 0)
 ) -> Component:
     c = gf.Component()
     r1 = c << gf.components.rectangle(size=(1, 1), layer=layer1)
@@ -42,7 +43,7 @@ def separation(
 
 @gf.cell
 def enclosing(
-    enclosing: float = 0.1, layer1: Layer = gf.LAYER.VIAC, layer2: Layer = gf.LAYER.M1
+    enclosing: float = 0.1, layer1: Layer = (40, 0), layer2: Layer = (41, 0)
 ) -> Component:
     """Layer1 must be enclosed by layer2 by value.
 
@@ -71,7 +72,8 @@ def snapping_error(gap: float = 1e-3) -> Component:
 def errors() -> Component:
     components = [width_min(), gap_min(), separation(), enclosing()]
     c = gf.pack(components, spacing=1.5)
-    return c[0]
+    c = gf.add_padding_container(c[0], layers=((64, 0),), default=5)
+    return c
 
 
 if __name__ == "__main__":
@@ -83,6 +85,5 @@ if __name__ == "__main__":
     # c.write_gds("snap.gds")
 
     c = errors()
-    c = gf.add_padding_container(c, layers=(gf.LAYER.FLOORPLAN,), default=5)
     c.write_gds("errors.gds")
     c.show(show_ports=True)

@@ -9,7 +9,7 @@ from gdsfactory.components.grating_coupler_elliptical import (
     grating_tooth_points,
 )
 from gdsfactory.geometry.functions import DEG2RAD
-from gdsfactory.typings import CrossSectionSpec, Floats, LayerSpec, Optional
+from gdsfactory.typings import CrossSectionSpec, Floats, LayerSpec
 
 _gaps = (0.1,) * 10
 _widths = (0.5,) * 10
@@ -24,8 +24,8 @@ def grating_coupler_elliptical_arbitrary(
     wavelength: float = 1.554,
     fiber_angle: float = 15.0,
     nclad: float = 1.443,
-    layer_slab: LayerSpec = "SLAB150",
-    layer_grating: Optional[LayerSpec] = None,
+    layer_slab: LayerSpec | None = "SLAB150",
+    layer_grating: LayerSpec | None = None,
     taper_to_slab_offset: float = -3.0,
     polarization: str = "te",
     spiked: bool = True,
@@ -131,16 +131,6 @@ def grating_coupler_elliptical_arbitrary(
         )
         c.add_polygon(pts, layer=layer_wg)
 
-    x = (taper_length + xis[-1]) / 2
-    name = f"opt_{polarization.lower()}_{int(wavelength*1e3)}_{int(fiber_angle)}"
-    c.add_port(
-        name=name,
-        center=(x, 0),
-        width=10,
-        orientation=0,
-        layer=xs.layer,
-        port_type=name,
-    )
     c.add_port(
         name="o1",
         center=(x_output, 0),
@@ -170,6 +160,16 @@ def grating_coupler_elliptical_arbitrary(
     if xs.add_pins:
         c = xs.add_pins(c)
 
+    x = (taper_length + xis[-1]) / 2
+    name = f"opt_{polarization.lower()}_{int(wavelength*1e3)}_{int(fiber_angle)}"
+    c.add_port(
+        name=name,
+        center=(x, 0),
+        width=10,
+        orientation=0,
+        layer=xs.layer,
+        port_type=name,
+    )
     return c
 
 
@@ -226,4 +226,4 @@ def grating_coupler_elliptical_uniform(
 if __name__ == "__main__":
     c = grating_coupler_elliptical_arbitrary(layer_grating=(3, 0))
     # c = grating_coupler_elliptical_arbitrary()
-    c.show(show_ports=True)
+    c.show(show_ports=False)

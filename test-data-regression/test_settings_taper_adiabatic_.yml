@@ -1,0 +1,54 @@
+name: taper_adiabatic
+ports:
+  o1:
+    center:
+    - 0.0
+    - 0.0
+    layer:
+    - 1
+    - 0
+    name: o1
+    orientation: 180
+    port_type: optical
+    shear_angle: null
+    width: 0.5
+  o2:
+    center:
+    - 22.311
+    - 0.0
+    layer:
+    - 1
+    - 0
+    name: o2
+    orientation: 0
+    port_type: optical
+    shear_angle: null
+    width: 5.0
+settings:
+  changed: {}
+  child: null
+  default:
+    alpha: 1
+    cross_section: strip
+    length: 0
+    neff_w:
+      function: <lambda>
+    npoints: 200
+    wavelength: 1.55
+    width1: 0.5
+    width2: 5.0
+  full:
+    alpha: 1
+    cross_section: strip
+    length: 0
+    neff_w:
+      function: <lambda>
+    npoints: 200
+    wavelength: 1.55
+    width1: 0.5
+    width2: 5.0
+  function_name: taper_adiabatic
+  info: {}
+  info_version: 2
+  module: gdsfactory.components.taper_adiabatic
+  name: taper_adiabatic

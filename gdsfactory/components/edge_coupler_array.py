@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import partial
+
 import numpy as np
 
 import gdsfactory as gf
@@ -7,9 +9,9 @@ from gdsfactory.component import Component
 from gdsfactory.components.extension import extend_ports
 from gdsfactory.components.taper import taper
 from gdsfactory.components.text import text_rectangular
-from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Float2, Optional
+from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Float2
 
-edge_coupler_silicon = gf.partial(taper, width2=0.2, length=100, with_two_ports=False)
+edge_coupler_silicon = partial(taper, width2=0.2, length=100, with_two_ports=False)
 
 
 @gf.cell
@@ -18,8 +20,9 @@ def edge_coupler_array(
     n: int = 5,
     pitch: float = 127.0,
     x_reflection: bool = False,
-    text: Optional[ComponentSpec] = text_rectangular,
+    text: ComponentSpec | None = text_rectangular,
     text_offset: Float2 = (10, 20),
+    text_rotation: float = 0,
 ) -> Component:
     """Fiber array edge coupler based on an inverse taper.
 
@@ -32,6 +35,7 @@ def edge_coupler_array(
         x_reflection: horizontal mirror.
         text: text spec.
         text_offset: from edge coupler.
+        text_rotation: text rotation in degrees.
     """
     edge_coupler = gf.get_component(edge_coupler)
 
@@ -49,6 +53,7 @@ def edge_coupler_array(
 
         if text:
             t = c << gf.get_component(text, text=str(i + 1))
+            t.rotate(text_rotation)
             t.move(np.array(text_offset) + (0, i * pitch))
 
     c.auto_rename_ports()
@@ -65,8 +70,9 @@ def edge_coupler_array_with_loopback(
     extension_length: float = 1.0,
     right_loopback: bool = True,
     x_reflection: bool = False,
-    text: Optional[ComponentSpec] = text_rectangular,
+    text: ComponentSpec | None = text_rectangular,
     text_offset: Float2 = (0, 0),
+    text_rotation: float = 0,
 ) -> Component:
     """Fiber array edge coupler.
 
@@ -81,6 +87,7 @@ def edge_coupler_array_with_loopback(
         x_reflection: horizontal mirror.
         text: Optional text spec.
         text_offset: x, y.
+        text_rotation: text rotation in degrees.
     """
     c = Component()
     ec = edge_coupler_array(
@@ -90,13 +97,14 @@ def edge_coupler_array_with_loopback(
         x_reflection=x_reflection,
         text=text,
         text_offset=text_offset,
+        text_rotation=text_rotation,
     )
     if extension_length > 0:
         ec = extend_ports(
             component=ec,
             port_names=("o1", "o2"),
             length=extension_length,
-            extension=gf.partial(
+            extension=partial(
                 gf.c.straight, cross_section=cross_section, length=extension_length
             ),
         )
@@ -129,7 +137,8 @@ def edge_coupler_array_with_loopback(
 
 
 if __name__ == "__main__":
+    c = edge_coupler_array_with_loopback(text_rotation=90)
     # c = edge_coupler_silicon()
-    c = edge_coupler_array(x_reflection=False)
+    # c = edge_coupler_array(x_reflection=False)
     # c = edge_coupler_array_with_loopback(x_reflection=False)
     c.show(show_ports=True)

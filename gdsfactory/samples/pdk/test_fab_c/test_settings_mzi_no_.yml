@@ -1,4 +1,29 @@
-name: mzi_f7f1cb39
+name: mzi_d1520c52
+ports:
+  o1:
+    center:
+    - -10.0
+    - 0.0
+    layer:
+    - 34
+    - 0
+    name: o1
+    orientation: 180.0
+    port_type: optical
+    shear_angle: null
+    width: 0.9
+  o2:
+    center:
+    - 81.12
+    - 0.0
+    layer:
+    - 34
+    - 0
+    name: o2
+    orientation: 0.0
+    port_type: optical
+    shear_angle: null
+    width: 0.9
 settings:
   changed:
     bend:
@@ -7,31 +32,53 @@ settings:
         cross_section:
           function: cross_section
           settings:
+            add_bbox: null
             add_pins:
               function: add_pins
+              settings:
+                function:
+                  function: add_pin_rectangle_inside
+                  settings:
+                    layer_label: null
+                    pin_length: 0.001
+                pin_length: 0.5
             bbox_layers:
             - - 36
               - 0
             bbox_offsets:
             - 3
+            info:
+              type: strip
             layer:
             - 34
             - 0
+            name: strip
             width: 0.9
         with_bbox: true
     cross_section:
       function: cross_section
       settings:
+        add_bbox: null
         add_pins:
           function: add_pins
+          settings:
+            function:
+              function: add_pin_rectangle_inside
+              settings:
+                layer_label: null
+                pin_length: 0.001
+            pin_length: 0.5
         bbox_layers:
         - - 36
           - 0
         bbox_offsets:
         - 3
+        info:
+          type: strip
         layer:
         - 34
         - 0
+        name: strip
         width: 0.9
     splitter:
       function: mmi1x2
@@ -39,16 +86,27 @@ settings:
         cross_section:
           function: cross_section
           settings:
+            add_bbox: null
             add_pins:
               function: add_pins
+              settings:
+                function:
+                  function: add_pin_rectangle_inside
+                  settings:
+                    layer_label: null
+                    pin_length: 0.001
+                pin_length: 0.5
             bbox_layers:
             - - 36
               - 0
             bbox_offsets:
             - 3
+            info:
+              type: strip
             layer:
             - 34
             - 0
+            name: strip
             width: 0.9
         width: 0.9
     straight:
@@ -57,20 +115,32 @@ settings:
         cross_section:
           function: cross_section
           settings:
+            add_bbox: null
             add_pins:
               function: add_pins
+              settings:
+                function:
+                  function: add_pin_rectangle_inside
+                  settings:
+                    layer_label: null
+                    pin_length: 0.001
+                pin_length: 0.5
             bbox_layers:
             - - 36
               - 0
             bbox_offsets:
             - 3
+            info:
+              type: strip
             layer:
             - 34
             - 0
+            name: strip
             width: 0.9
         with_bbox: true
   child: null
   default:
+    add_optical_ports_arms: false
     bend:
       function: bend_euler
     combiner: null
@@ -80,6 +150,7 @@ settings:
     delta_length: 10.0
     length_x: 0.1
     length_y: 2.0
+    mirror_bot: false
     nbends: 2
     port_e0_combiner: o3
     port_e0_splitter: o3
@@ -93,44 +164,68 @@ settings:
     straight_y: null
     with_splitter: true
   full:
+    add_optical_ports_arms: false
     bend:
       function: bend_euler
       settings:
         cross_section:
           function: cross_section
           settings:
+            add_bbox: null
             add_pins:
               function: add_pins
+              settings:
+                function:
+                  function: add_pin_rectangle_inside
+                  settings:
+                    layer_label: null
+                    pin_length: 0.001
+                pin_length: 0.5
             bbox_layers:
             - - 36
               - 0
             bbox_offsets:
             - 3
+            info:
+              type: strip
             layer:
             - 34
             - 0
+            name: strip
             width: 0.9
         with_bbox: true
     combiner: null
     cross_section:
       function: cross_section
       settings:
+        add_bbox: null
         add_pins:
           function: add_pins
+          settings:
+            function:
+              function: add_pin_rectangle_inside
+              settings:
+                layer_label: null
+                pin_length: 0.001
+            pin_length: 0.5
         bbox_layers:
         - - 36
           - 0
         bbox_offsets:
         - 3
+        info:
+          type: strip
         layer:
         - 34
         - 0
+        name: strip
         width: 0.9
     cross_section_x_bot: null
     cross_section_x_top: null
     delta_length: 10.0
     length_x: 0.1
     length_y: 2.0
+    mirror_bot: false
     nbends: 2
     port_e0_combiner: o3
     port_e0_splitter: o3
@@ -142,16 +237,27 @@ settings:
         cross_section:
           function: cross_section
           settings:
+            add_bbox: null
             add_pins:
               function: add_pins
+              settings:
+                function:
+                  function: add_pin_rectangle_inside
+                  settings:
+                    layer_label: null
+                    pin_length: 0.001
+                pin_length: 0.5
             bbox_layers:
             - - 36
               - 0
             bbox_offsets:
             - 3
+            info:
+              type: strip
             layer:
             - 34
             - 0
+            name: strip
             width: 0.9
         width: 0.9
     straight:
@@ -160,16 +266,27 @@ settings:
         cross_section:
           function: cross_section
           settings:
+            add_bbox: null
             add_pins:
               function: add_pins
+              settings:
+                function:
+                  function: add_pin_rectangle_inside
+                  settings:
+                    layer_label: null
+                    pin_length: 0.001
+                pin_length: 0.5
             bbox_layers:
             - - 36
               - 0
             bbox_offsets:
             - 3
+            info:
+              type: strip
             layer:
             - 34
             - 0
+            name: strip
             width: 0.9
         with_bbox: true
     straight_x_bot: null
@@ -180,4 +297,4 @@ settings:
   info: {}
   info_version: 2
   module: gdsfactory.components.mzi
-  name: mzi_f7f1cb39
+  name: mzi_d1520c52

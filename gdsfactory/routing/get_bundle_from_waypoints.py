@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Tuple, Union
+from collections.abc import Callable
+from functools import partial
 
 import numpy as np
 from numpy import float64, ndarray
@@ -21,6 +22,7 @@ from gdsfactory.routing.manhattan import (
 )
 from gdsfactory.routing.path_length_matching import path_length_matched_points
 from gdsfactory.routing.utils import get_list_ports_angle
+from gdsfactory.routing.validation import validate_connections
 from gdsfactory.typings import (
     ComponentSpec,
     Coordinate,
@@ -52,8 +54,8 @@ def _segment_sign(s: Coordinate) -> Number:
 
 
 def get_ports_x_or_y_distances(
-    list_ports: List[Port], ref_point: Coordinate
-) -> List[Number]:
+    list_ports: list[Port], ref_point: Coordinate
+) -> list[Number]:
     if not list_ports:
         return []
 
@@ -77,21 +79,21 @@ def _distance(port1, port2):
 
 
 def get_bundle_from_waypoints(
-    ports1: List[Port],
-    ports2: List[Port],
+    ports1: list[Port],
+    ports2: list[Port],
     waypoints: Coordinates,
     straight: ComponentSpec = straight_function,
     taper: ComponentSpec = taper_function,
     bend: ComponentSpec = bend_euler,
     sort_ports: bool = True,
-    cross_section: Union[CrossSectionSpec, MultiCrossSectionAngleSpec] = strip,
-    separation: Optional[float] = None,
+    cross_section: CrossSectionSpec | MultiCrossSectionAngleSpec = strip,
+    separation: float | None = None,
     on_route_error: Callable = get_route_error,
-    path_length_match_loops: Optional[int] = None,
+    path_length_match_loops: int | None = None,
     path_length_match_extra_length: float = 0.0,
     path_length_match_modify_segment_i: int = -2,
     **kwargs,
-) -> List[Route]:
+) -> list[Route]:
     """Returns list of routes that connect bundle of ports with bundle of routes.
 
     Routes follow a list of waypoints.
@@ -117,6 +119,7 @@ def get_bundle_from_waypoints(
         kwargs: cross_section settings.
 
     """
+    _p1, _p2 = ports1, ports2
     if len(ports2) != len(ports1):
         raise ValueError(
             f"Number of start ports should match number of end ports.\
@@ -226,7 +229,7 @@ def get_bundle_from_waypoints(
             cross_section=cross_section,
             **kwargs,
         )
-    return [
+    routes = [
         round_corners(
             points=pts,
             bend=bend,
@@ -237,13 +240,15 @@ def get_bundle_from_waypoints(
         )
         for pts in routes
     ]
+    validate_connections(_p1, _p2, routes)
+    return routes
 
 
-get_bundle_from_waypoints_electrical = gf.partial(
+get_bundle_from_waypoints_electrical = partial(
     get_bundle_from_waypoints, bend=wire_corner, cross_section="metal_routing"
 )
 
-get_bundle_from_waypoints_electrical_multilayer = gf.partial(
+get_bundle_from_waypoints_electrical_multilayer = partial(
     get_bundle_from_waypoints_electrical,
     bend=via_corner,
     cross_section=[
@@ -259,17 +264,17 @@ def snap_route_to_end_point_x(route, x):
 
 
 def snap_route_to_end_point_y(
-    route: List[Union[ndarray, Tuple[float64, float64]]], y: float64
-) -> List[Union[ndarray, Tuple[float64, float64]]]:
+    route: list[ndarray | tuple[float64, float64]], y: float64
+) -> list[ndarray | tuple[float64, float64]]:
     x1, x2 = (p[0] for p in route[-2:])
     return route[:-2] + [(x1, y), (x2, y)]
 
 
 def _generate_manhattan_bundle_waypoints(
-    ports1: List[Port],
-    ports2: List[Port],
+    ports1: list[Port],
+    ports2: list[Port],
     waypoints: Coordinates,
-    separation: Optional[float] = None,
+    separation: float | None = None,
     **kwargs,
 ) -> Coordinates:
     """Returns waypoints for bundle.

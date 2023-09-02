@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import gdsfactory as gf
 from gdsfactory.cell import cell
 from gdsfactory.component import Component
@@ -16,12 +14,12 @@ def coh_rx_dual_pol(
     bend: ComponentSpec = bend_euler,
     cross_section: CrossSectionSpec = "strip",
     lo_splitter: ComponentSpec = "mmi1x2",
-    signal_splitter: Optional[ComponentSpec] = None,
+    signal_splitter: ComponentSpec | None = None,
     spol_coh_rx: ComponentSpec = coh_rx_single_pol,
     single_pol_rx_spacing: float = 50.0,
     splitter_coh_rx_spacing: float = 40.0,
-    lo_input_coupler: Optional[ComponentSpec] = None,
-    signal_input_coupler: Optional[ComponentSpec] = None,
+    lo_input_coupler: ComponentSpec | None = None,
+    signal_input_coupler: ComponentSpec | None = None,
 ) -> Component:
     """Dual polarization coherent receiver.
 
@@ -159,14 +157,18 @@ def coh_rx_dual_pol(
         lo_coup.connect("o1", lo_split.ports["o1"])
 
     # ------ Extract electrical ports (if no pads) -------
-    c.add_ports(single_rx_1.get_ports_list(port_type="electrical"), prefix="pol1")
-    c.add_ports(single_rx_2.get_ports_list(port_type="electrical"), prefix="pol2")
-    c.auto_rename_ports()
+    c.add_ports(single_rx_1.get_ports_list(port_type="electrical"), prefix="pol1_")
+    c.add_ports(single_rx_2.get_ports_list(port_type="electrical"), prefix="pol2_")
+    c.add_ports(single_rx_1.get_ports_list(port_type="placement"), prefix="pol1_")
+    c.add_ports(single_rx_2.get_ports_list(port_type="placement"), prefix="pol2_")
 
+    c.add_ports(
+        lo_split.get_ports_list(port_type="optical", orientation=180), prefix="lo_"
+    )
     return c
 
 
 if __name__ == "__main__":
-    # c = coh_rx_dual_pol()
-    c = coh_rx_single_pol()
+    c = coh_rx_dual_pol()
+    # c = coh_rx_single_pol()
     c.show(show_ports=True)

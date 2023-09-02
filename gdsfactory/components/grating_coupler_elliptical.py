@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 
 import numpy as np
 from numpy import ndarray
@@ -71,7 +72,14 @@ def grating_taper_points(
     wg_width: float,
     angle_step: float = 1.0,
 ) -> ndarray:
-    taper_arc = ellipse_arc(a, b, taper_length, -taper_angle / 2, taper_angle / 2)
+    taper_arc = ellipse_arc(
+        a=a,
+        b=b,
+        x0=taper_length,
+        theta_min=-taper_angle / 2,
+        theta_max=taper_angle / 2,
+        angle_step=angle_step,
+    )
 
     port_position = np.array((x0, 0))
     p0 = port_position + (0, wg_width / 2)
@@ -91,7 +99,7 @@ def grating_coupler_elliptical(
     nclad: float = 1.443,
     n_periods: int = 30,
     big_last_tooth: bool = False,
-    layer_slab: LayerSpec = "SLAB150",
+    layer_slab: LayerSpec | None = "SLAB150",
     slab_xmin: float = -1.0,
     slab_offset: float = 2.0,
     spiked: bool = True,
@@ -204,16 +212,6 @@ def grating_coupler_elliptical(
 
     x = np.round(taper_length + x_output, 3)
 
-    name = f"opt_{polarization.lower()}_{int(wavelength*1e3)}_{int(fiber_angle)}"
-    c.add_port(
-        name=name,
-        center=(x, 0),
-        width=10,
-        orientation=0,
-        layer=layer,
-        port_type=name,
-    )
-
     c.add_port(
         name="o1", center=(x_output, 0), width=wg_width, orientation=180, layer=layer
     )
@@ -236,10 +234,20 @@ def grating_coupler_elliptical(
         c = xs.add_bbox(c)
     if xs.add_pins:
         c = xs.add_pins(c)
+
+    name = f"opt_{polarization.lower()}_{int(wavelength*1e3)}_{int(fiber_angle)}"
+    c.add_port(
+        name=name,
+        center=(x, 0),
+        width=10,
+        orientation=0,
+        layer=layer,
+        port_type=name,
+    )
     return c
 
 
-grating_coupler_elliptical_tm = gf.partial(
+grating_coupler_elliptical_tm = partial(
     grating_coupler_elliptical,
     grating_line_width=0.707,
     polarization="tm",

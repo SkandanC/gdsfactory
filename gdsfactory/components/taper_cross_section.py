@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from functools import partial
+
 import gdsfactory as gf
 from gdsfactory.cell import cell
 from gdsfactory.component import Component
 from gdsfactory.cross_section import rib_conformal, strip_rib_tip
+from gdsfactory.route_info import route_info
 from gdsfactory.typings import CrossSectionSpec
 
 
@@ -42,9 +45,11 @@ def taper_cross_section(
 
 
     """
+    x1 = gf.get_cross_section(cross_section1)
+    x2 = gf.get_cross_section(cross_section2, **kwargs)
     transition = gf.path.transition(
-        cross_section1=gf.get_cross_section(cross_section1),
-        cross_section2=gf.get_cross_section(cross_section2, **kwargs),
+        cross_section1=x1,
+        cross_section2=x2,
         width_type="linear" if linear else width_type,
     )
     taper_path = gf.path.straight(length=length, npoints=npoints)
@@ -52,25 +57,30 @@ def taper_cross_section(
     c = gf.Component()
     ref = c << gf.path.extrude(taper_path, cross_section=transition)
     c.add_ports(ref.ports)
+    c.absorb(ref)
+    if "type" in x1.info and x1.info["type"] == x2.info.get("type"):
+        c.info["route_info"] = route_info(x1.info["type"], length=length, taper=True)
     return c
 
 
-taper_cross_section_linear = gf.partial(taper_cross_section, linear=True, npoints=2)
-taper_cross_section_sine = gf.partial(taper_cross_section, linear=False, npoints=101)
-taper_cross_section_parabolic = gf.partial(
+taper_cross_section_linear = partial(taper_cross_section, linear=True, npoints=2)
+taper_cross_section_sine = partial(taper_cross_section, linear=False, npoints=101)
+taper_cross_section_parabolic = partial(
     taper_cross_section, linear=False, width_type="parabolic", npoints=101
 )
 
 
 if __name__ == "__main__":
-    # x1 = gf.partial(strip, width=0.5)
-    # x2 = gf.partial(strip, width=2.5)
+    # x1 = partial(strip, width=0.5)
+    # x2 = partial(strip, width=2.5)
     # c = taper_cross_section_linear(x1, x2)
 
-    # x1 = gf.partial(strip, width=0.5)
-    # x2 = gf.partial(rib, width=2.5)
+    # x1 = partial(strip, width=0.5)
+    # x2 = partial(rib, width=2.5)
     # c = taper_cross_section_linear(x1, x2)
 
-    c = taper_cross_section(gf.cross_section.strip, gf.cross_section.rib)
+    # c = taper_cross_section(gf.cross_section.strip, gf.cross_section.rib)
     # c = taper_cross_section_sine()
+    c = taper_cross_section_parabolic()
+    print([i.name for i in c.get_dependencies()])
     c.show(show_ports=True)

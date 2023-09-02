@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Union
 
 import gdstk
+import numpy as np
 from omegaconf import OmegaConf
 
 from gdsfactory.cell import Settings, cell
@@ -15,11 +15,12 @@ from gdsfactory.name import get_name_short
 
 @cell
 def import_gds(
-    gdspath: Union[str, Path],
-    cellname: Optional[str] = None,
-    gdsdir: Optional[Union[str, Path]] = None,
+    gdspath: str | Path,
+    cellname: str | None = None,
+    gdsdir: str | Path | None = None,
     read_metadata: bool = False,
-    hashed_name: bool = True,
+    keep_name_short: bool = False,
+    unique_names: bool = True,
     **kwargs,
 ) -> Component:
     """Returns a Component from a GDS file.
@@ -31,7 +32,9 @@ def import_gds(
         cellname: cell of the name to import. None imports top cell.
         gdsdir: optional GDS directory.
         read_metadata: loads metadata (ports, settings) if it exists in YAML format.
-        hashed_name: appends a hash to a shortened component name.
+        keep_name_short: appends a hash to a shortened component name.
+        unique_names: appends $ with a number to the name if the cell name is on CACHE.
+            This avoids name collisions when importing multiple times the same cell name.
         kwargs: extra to add to component.info (polarization, wavelength ...).
     """
     gdspath = Path(gdsdir) / Path(gdspath) if gdsdir else Path(gdspath)
@@ -61,9 +64,10 @@ def import_gds(
     for c in gdsii_lib.cells:
         D = Component(name=c.name)
         D._cell = c
-        D.name = c.name
+        if not unique_names:
+            D._cell.name = c.name
 
-        if hashed_name:
+        elif keep_name_short:
             D.name = get_name_short(D.name)
 
         cell_name_to_component[c.name] = D
@@ -120,7 +124,7 @@ def import_gds(
                 if port_name not in component.ports:
                     component.add_port(
                         name=port_name,
-                        center=port.center,
+                        center=np.array(port.center, dtype="float64"),
                         width=port.width,
                         orientation=port.orientation,
                         layer=tuple(port.layer),
@@ -132,7 +136,7 @@ def import_gds(
     return component
 
 
-def import_gds_raw(gdspath, top_cellname: Optional[str] = None):
+def import_gds_raw(gdspath, top_cellname: str | None = None):
     if not top_cellname:
         if gdspath.suffix.lower() == ".gds":
             gdsii_lib = gdstk.read_gds(str(gdspath))
@@ -155,7 +159,6 @@ if __name__ == "__main__":
     gdspath = c.write_gds()
     # c.show(show_ports=True)
 
-    gf.clear_cache()
     # c = import_gds(gdspath)
     c = import_gds(gdspath)
     c.show(show_ports=False)

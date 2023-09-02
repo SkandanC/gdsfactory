@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from functools import partial
 
 import numpy as np
 
@@ -15,30 +15,31 @@ from gdsfactory.routing.get_bundle_from_waypoints import get_bundle_from_waypoin
 from gdsfactory.routing.manhattan import _is_horizontal, _is_vertical
 from gdsfactory.routing.sort_ports import sort_ports as sort_ports_function
 from gdsfactory.typings import (
+    STEP_DIRECTIVES,
     ComponentSpec,
     CrossSectionSpec,
     MultiCrossSectionAngleSpec,
     Route,
-    STEP_DIRECTIVES,
     Step,
 )
 
 
 def get_bundle_from_steps(
-    ports1: List[Port],
-    ports2: List[Port],
-    steps: Optional[List[Step]] = None,
+    ports1: list[Port],
+    ports2: list[Port],
+    steps: list[Step] | None = None,
     bend: ComponentSpec = bend_euler,
     straight: ComponentSpec = straight_function,
-    taper: Optional[ComponentSpec] = taper_function,
-    cross_section: Union[CrossSectionSpec, MultiCrossSectionAngleSpec] = "strip",
+    taper: ComponentSpec | None = taper_function,
+    cross_section: CrossSectionSpec | MultiCrossSectionAngleSpec = "strip",
     sort_ports: bool = True,
-    separation: Optional[float] = None,
-    path_length_match_loops: int = None,
+    separation: float | None = None,
+    path_length_match_loops: int | None = None,
     path_length_match_extra_length: float = 0.0,
     path_length_match_modify_segment_i: int = -2,
+    enforce_port_ordering: bool = True,
     **kwargs,
-) -> List[Route]:
+) -> list[Route]:
     """Returns a list of routes formed by the given waypoints steps.
 
     Can add bends instead of corners and optionally tapers in straight sections.
@@ -61,11 +62,12 @@ def get_bundle_from_steps(
     .. plot::
         :include-source:
 
+        from functools import partial
         import gdsfactory as gf
 
         c = gf.Component("get_route_from_steps_sample")
         w = gf.components.array(
-            gf.partial(gf.components.straight, layer=(2, 0)),
+            partial(gf.components.straight, layer=(2, 0)),
             rows=3,
             columns=1,
             spacing=(0, 50),
@@ -103,7 +105,9 @@ def get_bundle_from_steps(
         ports2 = list(ports2.values())
 
     if sort_ports:
-        ports1, ports2 = sort_ports_function(ports1, ports2)
+        ports1, ports2 = sort_ports_function(
+            ports1, ports2, enforce_port_ordering=enforce_port_ordering
+        )
 
     waypoints = []
     steps = steps or []
@@ -172,11 +176,11 @@ def get_bundle_from_steps(
     )
 
 
-get_bundle_from_steps_electrical = gf.partial(
+get_bundle_from_steps_electrical = partial(
     get_bundle_from_steps, bend=wire_corner, cross_section="metal_routing"
 )
 
-get_bundle_from_steps_electrical_multilayer = gf.partial(
+get_bundle_from_steps_electrical_multilayer = partial(
     get_bundle_from_steps,
     bend=via_corner,
     cross_section=[
@@ -190,7 +194,7 @@ def _demo() -> None:
     c = gf.Component("get_route_from_steps_sample")
 
     w = gf.components.array(
-        gf.partial(gf.components.straight, layer=(2, 0)),
+        partial(gf.components.straight, layer=(2, 0)),
         rows=3,
         columns=1,
         spacing=(0, 50),
@@ -219,7 +223,7 @@ if __name__ == "__main__":
 
     c = gf.Component("pads_bundle_steps")
     pt = c << gf.components.pad_array(
-        gf.partial(gf.components.pad, size=(30, 30)),
+        partial(gf.components.pad, size=(30, 30)),
         orientation=270,
         columns=3,
         spacing=(50, 0),

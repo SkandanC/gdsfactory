@@ -9,9 +9,9 @@ Adapted from PHIDL https://github.com/amccaugh/phidl/ by Adam McCaughan
 from __future__ import annotations
 
 import hashlib
+import math
 import warnings
-from collections.abc import Iterable
-from typing import Callable, Optional, Union
+from collections.abc import Callable, Iterable
 
 import numpy as np
 from numpy import mod, pi
@@ -28,6 +28,7 @@ from gdsfactory.component_layout import (
 from gdsfactory.cross_section import CrossSection, Section, Transition
 from gdsfactory.port import Port
 from gdsfactory.typings import (
+    ComponentSpec,
     Coordinates,
     CrossSectionSpec,
     Float2,
@@ -54,7 +55,7 @@ class Path(_GeometryHelper):
 
     """
 
-    def __init__(self, path=None):
+    def __init__(self, path=None) -> None:
         """Creates an empty path."""
         self.points = np.array([[0, 0]], dtype=np.float64)
         self.start_angle = 0
@@ -85,9 +86,26 @@ class Path(_GeometryHelper):
                     "an array-like[N][2] list of points, or a list of these"
                 )
 
-    def __len__(self):
+    def __repr__(self) -> str:
+        """Returns path points."""
+        return (
+            f"Path(start_angle={self.start_angle}, "
+            f"end_angle={self.end_angle}, "
+            f"points={self.points})"
+        )
+
+    def __len__(self) -> int:
         """Returns path points."""
         return len(self.points)
+
+    def __iadd__(self, path_or_points) -> Path:
+        """Adds points to current path."""
+        return self.append(path_or_points)
+
+    def __add__(self, path) -> Path:
+        """Returns new path concatenating current and new path."""
+        new = self.copy()
+        return new.append(path)
 
     @property
     def bbox(self):
@@ -125,7 +143,7 @@ class Path(_GeometryHelper):
             nx2, ny2 = points[-1] - points[-2]
             end_angle = np.arctan2(ny2, nx2) / np.pi * 180
         # If list of Paths or arrays
-        elif isinstance(path, (list, tuple)):
+        elif isinstance(path, list | tuple):
             for p in path:
                 self.append(p)
             return self
@@ -147,7 +165,7 @@ class Path(_GeometryHelper):
 
         return self
 
-    def offset(self, offset: Union[float, Callable[..., float]] = 0):
+    def offset(self, offset: float | Callable[..., float] = 0):
         """Offsets Path so that it follows the Path centerline plus an offset.
 
         The offset can either be a fixed value, or a function
@@ -213,7 +231,7 @@ class Path(_GeometryHelper):
 
         return self
 
-    def rotate(self, angle: float = 45, center: Optional[Float2] = (0, 0)):
+    def rotate(self, angle: float = 45, center: Float2 | None = (0, 0)):
         """Rotates all Polygons in the Component around the specified center point.
 
         If no center point specified will rotate around (0,0).
@@ -361,12 +379,25 @@ class Path(_GeometryHelper):
         magic_offset = 0.17048614
 
         final_hash = hashlib.sha1()
-        p = np.ascontiguousarray(
-            (self.points / precision) + magic_offset, dtype=np.int64
+        points = (
+            np.ascontiguousarray(
+                (self.points / precision) + magic_offset, dtype=np.float64
+            )
+            .round()
+            .astype(np.int64)
         )
-        final_hash.update(p)
-        p = np.ascontiguousarray((self.start_angle, self.end_angle), dtype=np.float64)
-        final_hash.update(p)
+        final_hash.update(points)
+        angles = (
+            (
+                np.ascontiguousarray(
+                    (self.start_angle, self.end_angle), dtype=np.float64
+                )
+                / precision
+            )
+            .round()
+            .astype(np.int64)
+        )
+        final_hash.update(angles)
         return final_hash.hexdigest()
 
     @classmethod
@@ -380,8 +411,8 @@ class Path(_GeometryHelper):
         assert isinstance(v, Path), f"TypeError, Got {type(v)}, expecting Path"
         return v
 
-    def to_dict(self):
-        return self.hash_geometry()
+    def to_dict(self) -> dict[str, str]:
+        return dict(hash=self.hash_geometry())
 
     def plot(self) -> None:
         """Plot path in matplotlib.
@@ -400,13 +431,13 @@ class Path(_GeometryHelper):
 
     def extrude(
         self,
-        cross_section: Optional[CrossSectionSpec] = None,
-        layer: Optional[LayerSpec] = None,
-        width: Optional[float] = None,
-        widths: Optional[Float2] = None,
-        simplify: Optional[float] = None,
-        shear_angle_start: Optional[float] = None,
-        shear_angle_end: Optional[float] = None,
+        cross_section: CrossSectionSpec | None = None,
+        layer: LayerSpec | None = None,
+        width: float | None = None,
+        widths: Float2 | None = None,
+        simplify: float | None = None,
+        shear_angle_start: float | None = None,
+        shear_angle_end: float | None = None,
     ) -> Component:
         """Returns Component by extruding a Path with a CrossSection.
 
@@ -582,6 +613,7 @@ def transition(
     cross_section1: CrossSection,
     cross_section2: CrossSection,
     width_type: WidthTypes = "sine",
+    **kwargs,
 ) -> Transition:
     """Returns a smoothly-transitioning between two CrossSections.
 
@@ -629,14 +661,20 @@ def transition(
     ]
 
     if X1.cladding_layers:
+        cladding_simplify = X1.cladding_simplify or [None] * len(X1.cladding_layers)
         sections1 += [
-            Section(width=X1.width + 2 * offset, layer=layer)
-            for offset, layer in zip(X1.cladding_offsets, X2.cladding_layers)
+            Section(width=X1.width + 2 * offset, layer=layer, simplify=simplify)
+            for offset, layer, simplify in zip(
+                X1.cladding_offsets, X1.cladding_layers, cladding_simplify
+            )
         ]
     if X2.cladding_layers:
+        cladding_simplify = X2.cladding_simplify or [None] * len(X2.cladding_layers)
         sections2 += [
             Section(width=X2.width + 2 * offset, layer=layer)
-            for offset, layer in zip(X2.cladding_offsets, X2.cladding_layers)
+            for offset, layer, simplify in zip(
+                X2.cladding_offsets, X2.cladding_layers, cladding_simplify
+            )
         ]
 
     for section1, section2 in zip(sections1, sections2):
@@ -693,19 +731,83 @@ def transition(
         width_type=width_type,
         sections=sections,
         width=max([X1.width, X2.width]),
+        **kwargs,
     )
+
+
+@cell
+def along_path(
+    p: Path,
+    component: ComponentSpec,
+    spacing: float,
+    padding: float,
+) -> Component:
+    """Returns Component containing many copies of `component` along `p`.
+
+    Places as many copies of `component` along each segment of `p` as possible
+    under the given constraints. `spacing` is always followed precisely, but
+    actual `padding` may exceed the provided value to place components evenly.
+
+    Args:
+        p: Path to place components along.
+        component: Component to repeat along the path. The unrotated version of
+            this object should be oriented for placement on a horizontal line.
+        spacing: distance between component placements.
+        padding: minimum distance from the path start to the first component.
+    """
+    from gdsfactory.pdk import get_component
+
+    component = get_component(component)
+
+    length = p.length()
+    number = (length - 2 * padding) // spacing + 1
+
+    c = Component()
+
+    cum_dist = 0
+    next_component = (length - (number - 1) * spacing) / 2
+    stop = length - next_component
+
+    # Prepare in advance the rotation angle for each segment
+    angle_list = [
+        np.rad2deg(
+            np.arctan2(
+                (p.points[i + 1] - p.points[i])[1], (p.points[i + 1] - p.points[i])[0]
+            )
+        )
+        for i in range(len(p.points) - 1)
+    ]
+
+    for i, start_pt in enumerate(p.points[:-1]):
+        end_pt = p.points[i + 1]
+        segment_vector = end_pt - start_pt
+        segment_length = np.linalg.norm(segment_vector)
+        unit_vector = segment_vector / segment_length
+
+        # Get the pre-calculated angle for this segment
+        angle = angle_list[i]
+
+        while next_component <= cum_dist + segment_length and next_component <= stop:
+            added_dist = next_component - cum_dist
+            offset = added_dist * unit_vector
+            component_ref = c << component
+            component_ref.rotate(angle).move(start_pt + offset)
+            next_component += spacing
+        cum_dist += segment_length
+
+    return c
 
 
 @cell
 def extrude(
     p: Path,
-    cross_section: Optional[CrossSectionSpec] = None,
-    layer: Optional[LayerSpec] = None,
-    width: Optional[float] = None,
-    widths: Optional[Float2] = None,
-    simplify: Optional[float] = None,
-    shear_angle_start: Optional[float] = None,
-    shear_angle_end: Optional[float] = None,
+    cross_section: CrossSectionSpec | None = None,
+    layer: LayerSpec | None = None,
+    width: float | None = None,
+    widths: Float2 | None = None,
+    simplify: float | None = None,
+    shear_angle_start: float | None = None,
+    shear_angle_end: float | None = None,
 ) -> Component:
     """Returns Component extruding a Path with a cross_section.
 
@@ -723,7 +825,6 @@ def extrude(
           polygon by more than the value listed here will be removed.
         shear_angle_start: an optional angle to shear the starting face by (in degrees).
         shear_angle_end: an optional angle to shear the ending face by (in degrees).
-
     """
     from gdsfactory.pdk import (
         get_active_pdk,
@@ -752,6 +853,20 @@ def extrude(
     c = Component()
 
     x = get_cross_section(cross_section)
+    if x and x.mirror:
+        sections = x.sections or []
+        cladding_offsets = x.cladding_offsets or []
+        sections = [
+            section.model_copy(update=dict(offset=-section.offset))
+            for section in sections
+        ]
+        cladding_offsets = [-o for o in cladding_offsets]
+        x = x.copy(
+            offset=-cross_section.offset,
+            sections=sections,
+            cladding_offsets=cladding_offsets,
+        )
+
     sections = x.sections or []
     sections = list(sections)
 
@@ -762,13 +877,18 @@ def extrude(
                 width=x.width,
                 offset=x.offset,
                 layer=get_layer(x.layer),
+                simplify=x.simplify,
                 port_names=x.port_names,
                 port_types=x.port_types,
+                insets=None,
             )
         ]
 
         if x.cladding_layers and x.cladding_offsets:
-            for layer, cladding_offset in zip(x.cladding_layers, x.cladding_offsets):
+            cladding_simplify = x.cladding_simplify or [None] * len(x.cladding_layers)
+            for layer, cladding_offset, with_simplify in zip(
+                x.cladding_layers, x.cladding_offsets, cladding_simplify
+            ):
                 width = x.width(1) if callable(x.width) else x.width
                 width = max(width) if isinstance(width, Iterable) else width
                 sections += [
@@ -776,10 +896,12 @@ def extrude(
                         width=width + 2 * cladding_offset,
                         offset=x.offset,
                         layer=get_layer(layer),
+                        simplify=with_simplify,
                     )
                 ]
 
     for section in sections:
+        p_sec = p.copy()
         width = section.width
         offset = section.offset
         layer = get_layer(section.layer)
@@ -787,7 +909,7 @@ def extrude(
         port_types = section.port_types
         hidden = section.hidden
 
-        if isinstance(width, (int, float)) and isinstance(offset, (int, float)):
+        if isinstance(width, int | float) and isinstance(offset, int | float):
             xsection_points.append([width, offset])
         if isinstance(layer, int):
             layer = (layer, 0)
@@ -799,30 +921,46 @@ def extrude(
         ):
             xsection_points.append([layer[0], layer[1]])
 
-        # print(offset, type(offset))
-        if callable(offset):
-            P_offset = p.copy()
-            P_offset.offset(offset)
-            points = P_offset.points
-            start_angle = P_offset.start_angle
-            end_angle = P_offset.end_angle
-            offset = 0
-        else:
-            points = p.points
-            start_angle = p.start_angle
-            end_angle = p.end_angle
+        if section.insets and section.insets != (0, 0):
+            p_pts = p_sec.points
 
+            new_x_start = p.xmin + section.insets[0]
+            new_x_stop = p.xmax - section.insets[1]
+
+            if new_x_start > np.max(p_pts[:, 0]) or new_x_stop < np.min(p_pts[:, 0]):
+                warnings.warn(
+                    f"Cannot apply delay to Section '{section.name}', delay results in points outside of original path.",
+                    stacklevel=3,
+                )
+                continue
+
+            new_start_idx = np.argwhere(p_pts[:, 0] > new_x_start)[0, 0]
+            new_stop_idx = np.argwhere(p_pts[:, 0] < new_x_stop)[-1, 0]
+
+            new_start_point = [new_x_start, p_pts[new_start_idx, 1]]
+            new_stop_point = [new_x_stop, p_pts[new_stop_idx, 1]]
+
+            p_sec = Path(
+                [new_start_point, *p_pts[new_start_idx:new_stop_idx], new_stop_point]
+            )
+
+        if callable(offset):
+            p_sec.offset(offset)
+            offset = 0
+        end_angle = p_sec.end_angle
+        start_angle = p_sec.start_angle
+        points = p_sec.points
         if callable(width):
             # Compute lengths
-            dx = np.diff(p.points[:, 0])
-            dy = np.diff(p.points[:, 1])
+            dx = np.diff(p_sec.points[:, 0])
+            dy = np.diff(p_sec.points[:, 1])
             lengths = np.cumsum(np.sqrt(dx**2 + dy**2))
             lengths = np.concatenate([[0], lengths])
             width = width(lengths / lengths[-1])
         dy = offset + width / 2
         # _points = _shear_face(points, dy, shear_angle_start, shear_angle_end)
 
-        points1 = p._centerpoint_offset_curve(
+        points1 = p_sec._centerpoint_offset_curve(
             points,
             offset_distance=dy,
             start_angle=start_angle,
@@ -831,7 +969,7 @@ def extrude(
         dy = offset - width / 2
         # _points = _shear_face(points, dy, shear_angle_start, shear_angle_end)
 
-        points2 = p._centerpoint_offset_curve(
+        points2 = p_sec._centerpoint_offset_curve(
             points,
             offset_distance=dy,
             start_angle=start_angle,
@@ -865,9 +1003,11 @@ def extrude(
         if isinstance(simplify, bool):
             raise ValueError("simplify argument must be a number (e.g. 1e-3) or None")
 
-        if simplify is not None:
-            points1 = _simplify(points1, tolerance=simplify)
-            points2 = _simplify(points2, tolerance=simplify)
+        with_simplify = section.simplify or simplify
+
+        if with_simplify:
+            points1 = _simplify(points1, tolerance=with_simplify)
+            points2 = _simplify(points2, tolerance=with_simplify)
 
         if x.snap_to_grid:
             points = snap.snap_to_grid(points, snap_to_grid_nm)
@@ -878,7 +1018,7 @@ def extrude(
         points_poly = np.concatenate([points1, points2[::-1, :]])
 
         layers = layer if hidden else [layer, layer]
-        if not hidden and p.length() > 1e-3:
+        if not hidden and p_sec.length() > 1e-3:
             c.add_polygon(points_poly, layer=layer)
 
         pdk = get_active_pdk()
@@ -887,7 +1027,7 @@ def extrude(
         # Add port_names if they were specified
         if port_names[0] is not None:
             port_width = width if np.isscalar(width) else width[0]
-            port_orientation = (p.start_angle + 180) % 360
+            port_orientation = (p_sec.start_angle + 180) % 360
             center = points[0]
             face = [points1[0], points2[0]]
             face = [_rotated_delta(point, center, port_orientation) for point in face]
@@ -914,7 +1054,7 @@ def extrude(
             port1.info["face"] = face
         if port_names[1] is not None:
             port_width = width if np.isscalar(width) else width[-1]
-            port_orientation = (p.end_angle) % 360
+            port_orientation = (p_sec.end_angle) % 360
             center = points[-1]
             face = [points1[-1], points2[-1]]
             face = [_rotated_delta(point, center, port_orientation) for point in face]
@@ -949,6 +1089,21 @@ def extrude(
             c = x.add_pins(c)
         if x.decorator:
             c = x.decorator(c) or c
+
+        for via in x.vias:
+            if via.offset:
+                points_offset = p._centerpoint_offset_curve(
+                    points,
+                    offset_distance=via.offset,
+                    start_angle=start_angle,
+                    end_angle=end_angle,
+                )
+                _p = Path(points_offset)
+            else:
+                _p = p
+            c << along_path(
+                p=_p, component=via.component, spacing=via.spacing, padding=via.padding
+            )
     return c
 
 
@@ -973,9 +1128,9 @@ def _rotated_delta(
 
 def _cut_path_with_ray(
     start_point: np.ndarray,
-    start_angle: Optional[float],
+    start_angle: float | None,
     end_point: np.ndarray,
-    end_angle: Optional[float],
+    end_angle: float | None,
     path: np.ndarray,
 ) -> np.ndarray:
     """Cuts or extends a path given a point and angle to project."""
@@ -1033,8 +1188,8 @@ def _cut_path_with_ray(
 def arc(
     radius: float = 10.0,
     angle: float = 90,
-    npoints: Optional[int] = None,
-    start_angle: Optional[float] = -90,
+    npoints: int | None = None,
+    start_angle: float | None = -90,
 ) -> Path:
     """Returns a radial arc.
 
@@ -1058,7 +1213,7 @@ def arc(
     PDK = get_active_pdk()
 
     npoints = npoints or abs(int(angle / 360 * radius / PDK.bend_points_distance / 2))
-    npoints = max(npoints, int(360 / angle) + 1)
+    npoints = max(int(npoints), int(360 / angle) + 1)
 
     t = np.linspace(
         start_angle * np.pi / 180, (angle + start_angle) * np.pi / 180, npoints
@@ -1088,8 +1243,8 @@ def _fresnel(R0, s, num_pts, n_iter=8):
     y = np.zeros(num_pts)
 
     for n in range(n_iter):
-        x += (-1) ** n * t ** (4 * n + 1) / (np.math.factorial(2 * n) * (4 * n + 1))
-        y += (-1) ** n * t ** (4 * n + 3) / (np.math.factorial(2 * n + 1) * (4 * n + 3))
+        x += (-1) ** n * t ** (4 * n + 1) / (math.factorial(2 * n) * (4 * n + 1))
+        y += (-1) ** n * t ** (4 * n + 3) / (math.factorial(2 * n + 1) * (4 * n + 3))
 
     return np.array([np.sqrt(2) * R0 * x, np.sqrt(2) * R0 * y])
 
@@ -1099,7 +1254,7 @@ def euler(
     angle: float = 90,
     p: float = 0.5,
     use_eff: bool = False,
-    npoints: Optional[int] = None,
+    npoints: int | None = None,
 ) -> Path:
     """Returns an euler bend that adiabatically transitions from straight to curved.
 
@@ -1446,23 +1601,25 @@ def _demo_variable_offset() -> None:
 if __name__ == "__main__":
     import numpy as np
 
-    points = np.array([(20, 10), (40, 10), (20, 40), (50, 40), (50, 20), (70, 20)])
+    import gdsfactory as gf
+    from gdsfactory.cross_section import ComponentAlongPath
 
-    p = smooth(points=points)
-    # p = arc(start_angle=0)
-    c = p.extrude(layer=(1, 0), width=0.1)
+    # Create the path
+    p = gf.path.straight()
+    p += gf.path.arc(10)
+    p += gf.path.straight()
 
-    # p = straight()
-    # p.plot()
+    # Define a cross-section with a via
+    via0 = ComponentAlongPath(component=gf.c.via1(), spacing=5, padding=2, offset=0)
+    via = ComponentAlongPath(component=gf.c.via1(), spacing=5, padding=2, offset=2)
+    x = gf.CrossSection(
+        width=0.5,
+        offset=0,
+        layer=(1, 0),
+        port_names=("in", "out"),
+        vias=[via0, via],
+    )
 
-    # from phidl.path import smooth
-    # p = smooth(
-    #     points=points,
-    #     radius=2,
-    #     # bend=gf.path.euler,
-    #     use_eff=False,
-    # )
-
-    # c = p.extrude(layer=(1, 0), width=0.1)
-    # c = gf.read.from_phidl(c)
+    # Combine the path with the cross-section
+    c = gf.path.extrude(p, cross_section=x)
     c.show()

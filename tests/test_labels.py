@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import partial
+
 import gdsfactory as gf
 from gdsfactory.add_labels import (
     get_input_label,
@@ -8,7 +10,7 @@ from gdsfactory.add_labels import (
 )
 from gdsfactory.component import Component
 
-straight = gf.partial(
+straight = partial(
     gf.components.straight,
     with_bbox=True,
     cladding_layers=None,
@@ -17,17 +19,16 @@ straight = gf.partial(
 )
 
 
-@gf.cell
-def test_add_labels_optical() -> Component:
+def test_add_labels_optical() -> None:
     c = Component()
     wg = c << straight(length=1.467)
 
     gc = gf.components.grating_coupler_elliptical_te()
     label1 = get_input_label(
-        port=wg.ports["o1"], gc=gc, gc_index=0, layer_label=gf.LAYER.LABEL
+        port=wg.ports["o1"], gc=gc, gc_index=0, layer_label=(201, 0)
     )
     label2 = get_input_label(
-        port=wg.ports["o2"], gc=gc, gc_index=1, layer_label=gf.LAYER.LABEL
+        port=wg.ports["o2"], gc=gc, gc_index=1, layer_label=(201, 0)
     )
 
     labels = get_labels(
@@ -41,19 +42,17 @@ def test_add_labels_optical() -> Component:
 
     assert label1.text in labels_text, f"{label1.text} not in {labels_text}"
     assert label2.text in labels_text, f"{label2.text} not in {labels_text}"
-    return c
 
 
-@gf.cell
-def test_add_labels_electrical() -> Component:
+def test_add_labels_electrical() -> None:
     c = Component()
     _wg = gf.components.wire_straight(length=5.987)
     wg = c << _wg
     label1 = get_input_label_electrical(
-        port=wg.ports["e1"], layer_label=gf.LAYER.LABEL, gc_index=0
+        port=wg.ports["e1"], layer_label=(201, 0), gc_index=0
     )
     label2 = get_input_label_electrical(
-        port=wg.ports["e2"], layer_label=gf.LAYER.LABEL, gc_index=1
+        port=wg.ports["e2"], layer_label=(201, 0), gc_index=1
     )
     labels = get_labels(
         wg, get_label_function=get_input_label_electrical, component_name=_wg.name
@@ -64,7 +63,6 @@ def test_add_labels_electrical() -> Component:
 
     assert label1.text in labels_text, f"{label1.text} not in {labels_text}"
     assert label2.text in labels_text, f"{label2.text} not in {labels_text}"
-    return c
 
 
 if __name__ == "__main__":

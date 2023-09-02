@@ -1,43 +1,37 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import yaml
-from pydantic import AnyUrl, BaseModel, Extra, Field
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel
 
 import gdsfactory as gf
 
+SCHEMA_VERSION = 1
 
-class CrossSection(BaseModel):
-    __root__: str = Field(
+
+class CrossSection(RootModel):
+    root: str = Field(
         ..., description="A cross section to use for waveguides or traces."
     )
 
 
 class RouteSettings(BaseModel):
-    cross_section: Optional[CrossSection] = None
-    separation: Optional[float] = Field(
+    cross_section: CrossSection | None = None
+    separation: float | None = Field(
         5.0, description="The minimum separation between routes in the bundle [um]."
     )
-
-    class Config:
-        """Extra config."""
-
-        extra = Extra.allow
+    model_config = ConfigDict(extra="allow")
 
 
-class RoutingStrategy(BaseModel):
-    __root__: str = Field(..., description="The type of routing to use")
+class RoutingStrategy(RootModel):
+    root: str = Field(..., description="The type of routing to use")
 
 
 class Links(BaseModel):
     pass
-
-    class Config:
-        """Extra config."""
-
-        extra = Extra.allow
+    model_config = ConfigDict(extra="allow")
 
 
 class PortEnum(Enum):
@@ -54,74 +48,68 @@ class PortEnum(Enum):
 
 
 class Placement(BaseModel):
-    class Config:
-        """Extra config."""
+    model_config = ConfigDict(extra="forbid")
 
-        extra = Extra.forbid
-
-    x: Optional[Union[str, float]] = Field(
+    x: str | float | None = Field(
         None,
         description="The x location at which to place the component.\nThis can either be a number or an other_inst,port definition, meaning it will be placed relative to the port specified on the other instance. \nIf port keyword is defined, this will be relative to the specified port. Otherwise, it will be relative to the cell origin.",
     )
-    y: Optional[Union[str, float]] = Field(
+    y: str | float | None = Field(
         None,
         description="The y location at which to place the component.\nThis can either be a number or an other_inst,port definition, meaning it will be placed relative to the port specified on the other instance. \nIf port keyword is defined, this will be relative to the specified port. Otherwise, it will be relative to the cell origin.",
     )
-    port: Optional[Union[str, PortEnum]] = Field(
+    port: str | PortEnum | None = Field(
         None,
         description="The port or keyword used to anchor the component. Either specify any port on the instance or one of these special keywords:\nne, nc, nw, se, sc, sw, ce, cw, cc for the northeast, north-center, northwest, etc. coordinates of the cell",
     )
-    rotation: Optional[float] = Field(
+    rotation: float | None = Field(
         0,
         description="The rotation of the cell about the origin, or port if defined.",
     )
-    dx: Optional[float] = Field(
+    dx: float | None = Field(
         None,
         description="An additional displacement in the x direction. Useful if x is defined using other_inst,port syntax",
     )
-    dy: Optional[float] = Field(
+    dy: float | None = Field(
         None,
         description="An additional displacement in the y direction. Useful if y is defined using other_inst,port syntax",
     )
-    mirror: Optional[bool] = Field(
+    mirror: bool | None = Field(
         None,
         description="true/false value indicating whether we should flip horizontally.",
     )
 
 
 class Instance(BaseModel):
-    class Config:
-        """Extra config."""
-
-        extra = Extra.forbid
+    model_config = ConfigDict(extra="forbid")
 
     component: str
-    settings: Optional[Dict[str, Any]] = Field(
+    settings: dict[str, Any] | None = Field(
         None, description="Settings for the component"
     )
 
 
 class Route(BaseModel):
-    class Config:
-        """Extra config."""
+    model_config = ConfigDict(extra="forbid")
 
-        extra = Extra.forbid
-
-    routing_strategy: Optional[RoutingStrategy] = None
-    settings: Optional[RouteSettings] = None
-    links: Dict[str, str]
+    routing_strategy: RoutingStrategy | None = None
+    settings: RouteSettings | None = None
+    links: dict[str, str]
 
 
 class PicYamlConfiguration(BaseModel):
-    _schema: Optional[AnyUrl] = Field(None, alias="$schema")
-    instances: Optional[Dict[str, Instance]] = None
-    placements: Optional[Dict[str, Placement]] = None
-    routes: Optional[Dict[str, Route]] = None
-    ports: Optional[Dict[str, str]] = None
+    schema_version: str = Field(
+        default=SCHEMA_VERSION, description="The version of the YAML syntax used."
+    )
+    schema: AnyUrl | None = Field(None, alias="$schema")
+    instances: dict[str, Instance] | None = None
+    placements: dict[str, Placement] | None = None
+    routes: dict[str, Route] | None = None
+    ports: dict[str, str] | None = None
 
     def add_instance(
-        self, name: str, component: gf.Component, placement: Optional[Placement] = None
-    ):
+        self, name: str, component: gf.Component, placement: Placement | None = None
+    ) -> None:
         component_name = component.settings.function_name
         component_settings = component.settings.changed
         self.instances[name] = Instance(
@@ -131,11 +119,11 @@ class PicYamlConfiguration(BaseModel):
             placement = Placement()
         self.placements[name] = placement
 
-    def move_instance_to(self, name: str, x: float, y: float):
+    def move_instance_to(self, name: str, x: float, y: float) -> None:
         self.placements[name].x = x
         self.placements[name].y = y
 
-    def move_instance(self, name: str, dx: float, dy: float):
+    def move_instance(self, name: str, dx: float, dy: float) -> None:
         if not self.placements[name].dx:
             self.placements[name].dx = 0
         self.placements[name].dx += dx
@@ -143,18 +131,21 @@ class PicYamlConfiguration(BaseModel):
             self.placements[name].dy = 0
         self.placements[name].dy += dy
 
-    def to_yaml(self, filename):
-        netlist = self.dict()
+    def to_yaml(self, filename) -> None:
+        netlist = self.model_dump()
         with open(filename, mode="w") as f:
             yaml.dump(netlist, f, default_flow_style=None, sort_keys=False)
 
 
 class SchematicConfiguration(BaseModel):
-    _schema: Optional[AnyUrl] = Field(None, alias="$schema")
-    instances: Optional[Dict[str, Instance]] = None
-    schematic_placements: Optional[Dict[str, Placement]] = None
-    nets: Optional[List[List[str]]] = None
-    ports: Optional[Dict[str, str]] = None
+    schema_version: str = Field(
+        default=SCHEMA_VERSION, description="The version of the YAML syntax used."
+    )
+    schema: AnyUrl | None = Field(None, alias="$schema")
+    instances: dict[str, Instance] | None = None
+    schematic_placements: dict[str, Placement] | None = None
+    nets: list[list[str]] | None = None
+    ports: dict[str, str] | None = None
 
     @property
     def placements(self):
@@ -163,10 +154,10 @@ class SchematicConfiguration(BaseModel):
     def add_instance(
         self,
         name: str,
-        component: Union[str, gf.Component],
-        placement: Optional[Placement] = None,
-        settings: Dict[str, Any] = None,
-    ):
+        component: str | gf.Component,
+        placement: Placement | None = None,
+        settings: dict[str, Any] | None = None,
+    ) -> None:
         if isinstance(component, gf.Component):
             component_name = component.settings.function_name
             component_settings = component.settings.changed

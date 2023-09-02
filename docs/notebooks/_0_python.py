@@ -1,19 +1,3 @@
-# ---
-# jupyter:
-#   jupytext:
-#     custom_cell_magics: kql
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.11.2
-#   kernelspec:
-#     display_name: Python 3 (ipykernel)
-#     language: python
-#     name: python3
-# ---
-
-# %% [markdown]
 # # Python intro
 #
 # gdsfactory is written in python and requires some basic knowledge of python.
@@ -36,26 +20,31 @@
 #
 # In gdsfactory you will write functions instead of classes. Functions are easier to write and combine, and have clearly defined inputs and outputs.
 
-# %% tags=[]
-from pydantic import validate_arguments
+# +
+from functools import partial
+
+from pydantic import validate_call
 
 import gdsfactory as gf
 
-PDK = gf.get_generic_pdk()
-PDK.activate()
+from gdsfactory.generic_tech import get_generic_pdk
 
-# %%
+PDK = get_generic_pdk()
+PDK.activate()
+# -
+
 c = gf.Component(name="my_fist_component")
 c.add_polygon([(-8, 6, 7, 9), (-6, 8, 17, 5)], layer=(1, 0))
-c
+c.plot()
 
-# %% [markdown]
+
 # ## Functions
 #
 # Functions have clear inputs and outputs, they usually accept some parameters (strings, floats, ints ...) and return other parameters
+#
 
 
-# %% tags=[]
+# +
 def double(x):
     return 2 * x
 
@@ -63,23 +52,23 @@ def double(x):
 x = 1.5
 y = double(x)
 print(y)
+# -
 
-# %% [markdown]
 # It's also nice to add `type annotations` to your functions to clearly define what are the input/output types (string, int, float ...)
+#
 
 
-# %% tags=[]
 def double(x: float) -> float:
     return 2 * x
 
 
-# %% [markdown]
 # ## Factories
 #
 # A factory is a function that returns an object. In gdsfactory many functions return a `Component` object
+#
 
 
-# %% tags=[]
+# +
 def bend(radius: float = 5) -> gf.typings.Component:
     return gf.components.bend_euler(radius=radius)
 
@@ -88,11 +77,11 @@ component = bend(radius=10)
 
 print(component)
 component.plot()
+# -
 
-# %% tags=[]
 component
 
-# %% [markdown]
+
 # ## Decorators
 #
 # gdsfactory has many functions, and we want to do some common operations for the ones that return a Component:
@@ -105,10 +94,11 @@ component
 #
 # The validation functionality comes from the [pydantic](https://pydantic-docs.helpmanual.io/) package
 # and is available to you automatically when using the `@cell` decorator
+#
 
 
-# %%
-@validate_arguments
+# +
+@validate_call
 def double(x: float) -> float:
     return 2 * x
 
@@ -116,28 +106,28 @@ def double(x: float) -> float:
 x = 1.5
 y = double(x)
 print(y)
+# -
 
-# %% [markdown]
 # The validator decorator is equivalent to running
+#
 
 
-# %%
+# +
 def double(x: float) -> float:
     return 2 * x
 
 
-double_with_validator = validate_arguments(double)
+double_with_validator = validate_call(double)
 x = 1.5
 y = double_with_validator(x)
 print(y)
+# -
 
-# %% [markdown]
 # The `cell` decorator also leverages that validate arguments.
 # So you should add type annotations to your component factories.
 #
 # Lets try to create an error `x` and you will get a clear message the the function `double` does not work with strings
 
-# %% [markdown]
 # ```python
 # y = double("not_valid_number")
 # ```
@@ -153,31 +143,28 @@ print(y)
 #
 # It will also `cast` the input type based on the type annotation. So if you pass an `int` it will convert it to `float`
 
-# %%
 x = 1
 y = double_with_validator(x)
 print(y, type(x), type(y))
 
-# %% [markdown]
 # ## List comprehensions
 #
 # You will also see some list comprehensions, which are common in python.
 #
 # For example, you can write many loops in one line
 
-# %%
+# +
 y = []
 for x in range(3):
     y.append(double(x))
 
 print(y)
+# -
 
-# %%
 y = [double(x) for x in range(3)]  # much shorter and easier to read
 print(y)
 
 
-# %% [markdown] tags=[]
 # ## Functional programming
 #
 # Functional programming follows linux philosophy:
@@ -194,59 +181,56 @@ print(y)
 #
 # The following two functions are equivalent in functionality.
 #
-# Notice how the second one is shorter, more readable and easier to maintain thanks to `gf.partial`
+# Notice how the second one is shorter, more readable and easier to maintain thanks to `partial`
+#
 
 
-# %%
+# +
 def ring_sc(gap=0.3, **kwargs):
     return gf.components.ring_single(gap=gap, **kwargs)
 
 
-ring_sc = gf.partial(gf.components.ring_single, gap=0.3)
+ring_sc = partial(gf.components.ring_single, gap=0.3)
+# -
 
-# %% [markdown]
 # As you customize more parameters, it's more obvious that the second one is easier to maintain
+#
 
 
-# %%
+# +
 def ring_sc(gap=0.3, radius=10, **kwargs):
     return gf.components.ring_single(gap=gap, radius=radius, **kwargs)
 
 
-ring_sc = gf.partial(gf.components.ring_single, gap=0.3, radius=10)
+ring_sc = partial(gf.components.ring_single, gap=0.3, radius=10)
+# -
 
-# %% [markdown]
 # ### compose
 #
 # `gf.compose` combines two functions into one.
 
-# %%
-ring_sc = gf.partial(gf.components.ring_single, radius=10)
+# +
+ring_sc = partial(gf.components.ring_single, radius=10)
 add_gratings = gf.routing.add_fiber_array
 
 ring_sc_gc = gf.compose(add_gratings, ring_sc)
 ring_sc_gc5 = ring_sc_gc(radius=5)
 ring_sc_gc5
+# -
 
-# %%
 ring_sc_gc20 = ring_sc_gc(radius=20)
 ring_sc_gc20
 
-# %% [markdown]
 # This is equivalent and more readable than writing
 
-# %%
 ring_sc_gc5 = add_gratings(ring_sc(radius=5))
 ring_sc_gc5
 
-# %%
 ring_sc_gc20 = add_gratings(ring_sc(radius=20))
 ring_sc_gc20
 
-# %%
 print(ring_sc_gc5)
 
-# %% [markdown]
 # ## Ipython
 #
 # This Jupyter Notebook uses an Interactive Python Terminal (Ipython). So you can interact with the code.
@@ -255,25 +239,23 @@ print(ring_sc_gc5)
 #
 # The most common trick that you will see is that we use `?` to see the documentation of a function or `help(function)`
 
-# %%
+# +
 # gf.components.coupler?
+# -
 
-# %%
 help(gf.components.coupler)
 
-# %% [markdown]
 # To see the source code of a function you can use `??`
 
-# %%
+# +
 # gf.components.coupler??
+# -
 
-# %% [markdown]
 # To see which variables you have defined in the workspace you can type `whos`
 
-# %% [markdown]
 # To time the execution time of a cell, you can add a `%time` on top of the cell
 
-# %%
+# +
 # %time
 
 
@@ -282,6 +264,6 @@ def hi():
 
 
 hi()
+# -
 
-# %% [markdown]
 # For more Ipython tricks you can find many resources available online

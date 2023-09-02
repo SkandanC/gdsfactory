@@ -1,40 +1,31 @@
-"""Gdsfactory loads configuration from 3 files, high priority overwrites low.
+"""Gdsfactory loads configuration pydantic.
 
-priority:
-
-1. A config.yml found in the current working directory (highest priority)
-2. ~/.gdsfactory/config.yml specific for the machine
-3. the yamlpath_default in gdsfactory.technology.yml (lowest priority)
-
-You can access the CONF dictionary with `print_config`
-
-PATH has all your computer specific paths that we do not care to store
-
+You can set environment variables.
 """
 
 from __future__ import annotations
 
-import warnings
-import sys
-import io
+import importlib
 import json
 import os
 import pathlib
 import subprocess
+import sys
+import tempfile
+import traceback
+from itertools import takewhile
 from pathlib import Path
 from pprint import pprint
-from typing import Any, Iterable, Optional, Union
-import importlib
+from typing import Any, Literal
 
-from loguru import logger
-import omegaconf
-from omegaconf import OmegaConf
-
+import loguru
+from loguru import logger as logger
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from rich.console import Console
 from rich.table import Table
 
-__version__ = "6.61.0"
-PathType = Union[str, pathlib.Path]
+__version__ = "7.4.3"
+PathType = str | pathlib.Path
 
 home = pathlib.Path.home()
 cwd = pathlib.Path.cwd()
@@ -48,32 +39,42 @@ yamlpath_cwd = cwd / "config.yml"
 yamlpath_default = module_path / "config.yml"
 yamlpath_home = home_path / "config.yml"
 
-MAX_NAME_LENGTH = 32
+GDSDIR_TEMP = pathlib.Path(tempfile.TemporaryDirectory().name).parent / "gdsfactory"
 
-logger.remove()
-logger.add(sink=sys.stderr, level="WARNING")
+plugins = [
+    "gplugins",
+    "ray",
+    "femwell",
+    "devsim",
+    "tidy3d",
+    "meep",
+    "meow",
+    "lumapi",
+    "sax",
+]
+pdks = [
+    "gf45",
+    "tj",
+    "imec",
+    "amf",
+    "sky130",
+    "ubcpdk",
+    "aim",
+    "ct",
+    "hhi",
+    "sph",
+    "gf180",
+]
 
-showwarning_ = warnings.showwarning
 
-
-def showwarning(message, *args, **kwargs):
-    logger.warning(message)
-    showwarning_(message, *args, **kwargs)
-
-
-warnings.showwarning = showwarning
-
-plugins = ["ray", "femwell", "devsim", "tidy3d", "meep", "meow", "lumapi", "sax"]
-pdks = ["gf45", "tj", "imec", "amf", "sky130", "ubcpdk", "aim", "ct"]
-
-
-def print_version():
+def print_version_plugins() -> None:
     """Print gdsfactory plugin versions and paths."""
     table = Table(title="Modules")
     table.add_column("Package", justify="right", style="cyan", no_wrap=True)
     table.add_column("version", style="magenta")
     table.add_column("Path", justify="right", style="green")
 
+    table.add_row("python", sys.version, str(sys.executable))
     table.add_row("gdsfactory", __version__, str(module_path))
 
     for plugin in plugins:
@@ -90,7 +91,23 @@ def print_version():
     console.print(table)
 
 
-def print_version_pdks():
+def print_version_plugins_raw() -> None:
+    """Print gdsfactory plugin versions and paths."""
+    print("python", sys.version)
+    print("gdsfactory", __version__)
+
+    for plugin in plugins:
+        try:
+            m = importlib.import_module(plugin)
+            try:
+                print(plugin, m.__version__)
+            except AttributeError:
+                print(plugin)
+        except ImportError:
+            print(plugin, "not installed", "")
+
+
+def print_version_pdks() -> None:
     """Print gdsfactory PDK versions and paths."""
     table = Table(title="PDKs")
     table.add_column("Package", justify="right", style="cyan", no_wrap=True)
@@ -111,27 +128,59 @@ def print_version_pdks():
     console.print(table)
 
 
-default_config = io.StringIO(
+def get_number_of_cores() -> int:
+    """Get number of cores/threads available.
+
+    On (most) linux we can get it through the scheduling affinity. Otherwise,
+    fall back to the multiprocessing cpu count.
     """
-plotter: matplotlib
-sparameters_path: ${oc.env:HOME}/.gdsfactory/sparameters/generic
-show_ports: True
-"""
-)
+    try:
+        threads = len(os.sched_getaffinity(0))
+    except AttributeError:
+        import multiprocessing
+
+        threads = multiprocessing.cpu_count()
+    return threads
 
 
-def set_log_level(level: str, sink=sys.stderr) -> None:
-    """Sets log level for gdsfactory.
+def tracing_formatter(record: loguru.Record) -> str:
+    """Traceback filtering.
 
-    Args:
-        level: ["DEBUG", "INFO", "WARNING", "ERROR"]
-        sink: defaults to standard error.
+    Filter out frames coming from Loguru internals.
     """
-    log_levels = ["DEBUG", "INFO", "WARNING", "ERROR"]
-    if level not in log_levels:
-        raise ValueError(f"{level!r} not a valid log level {log_levels}")
-    logger.remove()
-    logger.add(sink=sink, level=level)
+    frames = takewhile(
+        lambda f: "/loguru/" not in f.filename, traceback.extract_stack()
+    )
+    stack = " > ".join(f"{f.filename}:{f.name}:{f.lineno}" for f in frames)
+    record["extra"]["stack"] = stack
+
+    if record["extra"].get("with_backtrace", False):
+        return (
+            "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level>"
+            " | <cyan>{extra[stack]}</cyan> - <level>{message}</level>\n{exception}"
+        )
+
+    else:
+        return (
+            "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}"
+            "</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>"
+            " - <level>{message}</level>\n{exception}"
+        )
+
+
+class Settings(BaseSettings):
+    """GDSFACTORY settings object."""
+
+    n_threads: int = get_number_of_cores()
+    display_type: Literal["widget", "klayout", "docs", "kweb"] = "kweb"
+    last_saved_files: list[PathType] = []
+    max_name_length: int = 99
+    model_config = SettingsConfigDict(
+        validation=True,
+        arbitrary_types_allowed=True,
+        env_prefix="gdsfactory_",
+        env_nested_delimiter="_",
+    )
 
 
 class Paths:
@@ -141,34 +190,28 @@ class Paths:
     generic_tech = module / "generic_tech"
     klayout = generic_tech / "klayout"
     klayout_tech = klayout / "tech"
-    klayout_lyp = klayout_tech / "layers.lyp"
+    klayout_lyp = klayout_tech / "generic_tech.lyp"
     klayout_yaml = generic_tech / "layer_views.yaml"
     schema_netlist = repo_path / "tests" / "schemas" / "netlist.json"
     netlists = module_path / "samples" / "netlists"
     gdsdir = repo_path / "tests" / "gds"
-    gdslib = repo_path / "gdslib"
+    gdslib = home / ".gdsfactory"
     modes = gdslib / "modes"
-    gdsdiff = gdslib / "gds"
     sparameters = gdslib / "sp"
+    capacitance = gdslib / "capacitance"
     interconnect = gdslib / "interconnect"
     optimiser = repo_path / "tune"
     notebooks = repo_path / "docs" / "notebooks"
+    plugins = module / "plugins"
+    test_data = repo / "test-data"
+    gds_ref = test_data / "gds"
+    gds_run = GDSDIR_TEMP / "gds_run"
+    gds_diff = GDSDIR_TEMP / "gds_diff"
+    cwd = cwd
+    sparameters_repo = test_data / "sp"  # repo with some demo sparameters
 
 
-def read_config(
-    yamlpaths: Iterable[PathType] = (yamlpath_default, yamlpath_home, yamlpath_cwd),
-) -> omegaconf.DictConfig:
-    config = OmegaConf.load(default_config)
-    for yamlpath in set(yamlpaths):
-        yamlpath = pathlib.Path(yamlpath)
-        if os.access(yamlpath, os.R_OK) and yamlpath.exists():
-            logger.info(f"loading tech config from {yamlpath}")
-            config_new = OmegaConf.load(yamlpath)
-            config = OmegaConf.merge(config, config_new)
-    return config
-
-
-CONF = read_config()
+CONF = Settings()
 PATH = Paths()
 sparameters_path = PATH.sparameters
 
@@ -199,7 +242,7 @@ def write_config(config: Any, json_out_path: Path) -> None:
         json.dump(config, f, indent=2, sort_keys=True, default=complex_encoder)
 
 
-def print_config(key: Optional[str] = None) -> None:
+def print_config(key: str | None = None) -> None:
     """Prints a key for the config or all the keys."""
     if key:
         if CONF.get(key):
@@ -251,10 +294,14 @@ def set_plot_options(
         zoom_factor=zoom_factor,
     )
 
-
-if __name__ == "__main__":
     # print(PATH.sparameters)
     # print_config()
     # print_version()
-    print_version_pdks()
+    # print_version_raw()
+    # print_version_pdks()
     # write_tech("tech.json")
+
+
+if __name__ == "__main__":
+    # print_version_plugins()
+    print_version_pdks()

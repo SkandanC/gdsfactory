@@ -1,7 +1,7 @@
 """Spiral with grating couplers inside to save space."""
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from functools import partial
 
 import numpy as np
 
@@ -14,7 +14,7 @@ from gdsfactory.snap import snap_to_grid
 from gdsfactory.typings import ComponentSpec, CrossSectionSpec
 
 
-def get_bend_port_distances(bend: Component) -> Tuple[float, float]:
+def get_bend_port_distances(bend: Component) -> tuple[float, float]:
     p0, p1 = bend.ports.values()
     return abs(p0.x - p1.x), abs(p0.y - p1.y)
 
@@ -31,9 +31,10 @@ def spiral_inner_io(
     bend90: ComponentSpec = bend_euler,
     bend180: ComponentSpec = bend_euler180,
     straight: ComponentSpec = straight_function,
-    length: Optional[float] = None,
+    length: float | None = None,
     cross_section: CrossSectionSpec = "strip",
-    cross_section_bend: Optional[CrossSectionSpec] = None,
+    cross_section_bend: CrossSectionSpec | None = None,
+    cross_section_bend180: CrossSectionSpec | None = None,
     asymmetric_cross_section: bool = False,
     **kwargs,
 ) -> Component:
@@ -57,12 +58,16 @@ def spiral_inner_io(
             to match the length by a simple 1D interpolation.
         cross_section: spec.
         cross_section_bend: for the bends.
+        cross_section_bend180: for 180 bend.
         asymmetric_cross_section: if the cross_section is asymmetric, it needs to be mirrored at the halfway point
         kwargs: cross_section settings.
     """
     dx = dy = waveguide_spacing
     cross_section_bend = cross_section_bend or cross_section
+    cross_section_bend180 = cross_section_bend180 or cross_section_bend
+
     xs_bend = gf.get_cross_section(cross_section_bend, **kwargs)
+    xs = gf.get_cross_section(cross_section, **kwargs)
 
     if length:
         x_straight_inner_left = get_straight_length(
@@ -77,7 +82,7 @@ def spiral_inner_io(
             waveguide_spacing=waveguide_spacing,
         )
 
-    _bend180 = gf.get_component(bend180, cross_section=cross_section_bend, **kwargs)
+    _bend180 = gf.get_component(bend180, cross_section=cross_section_bend180, **kwargs)
     _bend90 = gf.get_component(bend90, cross_section=cross_section_bend, **kwargs)
 
     rx, ry = get_bend_port_distances(_bend90)
@@ -151,10 +156,9 @@ def spiral_inner_io(
         pts_e += [_pt1, _pt2, _pt3, _pt4, _pt5]
 
     if asymmetric_cross_section:
-        cross_section = gf.partial(cross_section, mirror=True)
-        _bend90 = gf.get_component(
-            bend90, cross_section=gf.partial(cross_section_bend, mirror=False), **kwargs
-        )
+        cross_section = xs_bend
+        cross_section_bend = xs
+        _bend90 = gf.get_component(bend90, cross_section=cross_section_bend, **kwargs)
 
     route_east = round_corners(
         pts_e, bend=_bend90, straight=straight, cross_section=cross_section, **kwargs
@@ -169,8 +173,8 @@ def spiral_inner_io(
 @gf.cell
 def spiral_inner_io_fiber_single(
     cross_section: CrossSectionSpec = "strip",
-    cross_section_bend: Optional[CrossSectionSpec] = None,
-    cross_section_ports: Optional[CrossSectionSpec] = None,
+    cross_section_bend: CrossSectionSpec | None = None,
+    cross_section_ports: CrossSectionSpec | None = None,
     x_straight_inner_right: float = 40.0,
     x_straight_inner_left: float = 75.0,
     y_straight_inner_top: float = 10.0,
@@ -250,11 +254,17 @@ def get_straight_length(
 
 
 if __name__ == "__main__":
+    import gdsfactory as gf
+
+    cross_section = gf.cross_section.rib_conformal2
+    cross_section = gf.cross_section.pn
+
     c = gf.components.spiral_inner_io(
-        cross_section=gf.cross_section.pn,
-        waveguide_spacing=25,
+        cross_section=cross_section,
+        cross_section_bend=partial(cross_section, mirror=True),
+        # cross_section_bend180=partial(cross_section, mirror=True),
+        waveguide_spacing=20,
         radius=30,
-        cross_section_bend=gf.partial(gf.cross_section.pn, mirror=True),
         asymmetric_cross_section=True,
     )
     c.show()

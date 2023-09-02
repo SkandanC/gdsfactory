@@ -10,30 +10,52 @@ They without modifying the cell name
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING
 
 import gdstk
 import numpy as np
 from numpy import ndarray
 from omegaconf import OmegaConf
 
-from gdsfactory.snap import snap_to_grid
-
 if TYPE_CHECKING:
     from gdsfactory.component import Component
     from gdsfactory.component_reference import ComponentReference
     from gdsfactory.port import Port
 
-Layer = Tuple[int, int]
-Layers = Tuple[Layer, ...]
-LayerSpec = Optional[Union[Layer, str, int]]
-LayerSpecs = Tuple[LayerSpec, ...]
+Layer = tuple[int, int]
+Layers = tuple[Layer, ...]
+LayerSpec = Layer | str | int | None
+LayerSpecs = tuple[LayerSpec, ...]
 nm = 1e-3
 
 
 def _rotate(v: ndarray, m: ndarray) -> ndarray:
     return np.dot(m, v)
+
+
+def add_bbox(
+    component: Component,
+    bbox_layer: LayerSpec = "DEVREC",
+) -> Component:
+    """Add bbox on outline.
+
+    Args:
+        component: component to add bbox.
+        bbox_layer: bbox layer.
+    """
+    from gdsfactory.pdk import get_layer
+
+    bbox_layer = get_layer(bbox_layer)
+    polygons = component.get_polygons(as_array=False)
+    polygons_ = gdstk.boolean(
+        polygons, [], "or", layer=bbox_layer[0], datatype=bbox_layer[1]
+    )
+
+    component.add(polygons_)
+
+    return component
 
 
 def add_bbox_siepic(
@@ -63,7 +85,7 @@ def add_bbox_siepic(
 
 def get_pin_triangle_polygon_tip(
     port: Port,
-) -> Tuple[List[float], Tuple[float, float]]:
+) -> tuple[list[float], tuple[float, float]]:
     """Returns triangle polygon and tip position."""
     p = port
     port_face = p.info.get("face", None)
@@ -161,7 +183,7 @@ def add_pin_rectangle_inside(
     d = p.width / 2
 
     dbot = np.array([0, -d])
-    dtop = np.array([0, d])
+    dtop = np.array([0, +d])
     dbotin = np.array([-pin_length, -d])
     dtopin = np.array([-pin_length, +d])
 
@@ -314,7 +336,7 @@ def add_pin_path(
     port: Port,
     pin_length: float = 2 * nm,
     layer: LayerSpec = "PORT",
-    layer_label: LayerSpec = None,
+    layer_label: LayerSpec | None = None,
 ) -> None:
     """Add half out path pin to a component.
 
@@ -374,7 +396,7 @@ def add_pin_path(
 
 def add_outline(
     component: Component,
-    reference: Optional[ComponentReference] = None,
+    reference: ComponentReference | None = None,
     layer: LayerSpec = "DEVREC",
     **kwargs,
 ) -> None:
@@ -438,9 +460,9 @@ add_pins_siepic_electrical = partial(
 
 def add_pins(
     component: Component,
-    reference: Optional[ComponentReference] = None,
+    reference: ComponentReference | None = None,
     function: Callable = add_pin_rectangle_inside,
-    select_ports: Optional[Callable] = None,
+    select_ports: Callable | None = None,
     **kwargs,
 ) -> Component:
     """Add Pin port markers.
@@ -452,7 +474,12 @@ def add_pins(
         reference: to add pins.
         function: to add each pin.
         select_ports: function to select_ports.
+
+    Keyword Args:
         kwargs: add pins function settings.
+        pin_length: length of the pin marker for the port.
+        layer: layer for the pin marker.
+        layer_label: add label for the pin marker.
     """
     reference = reference or component
     ports = (
@@ -467,6 +494,12 @@ def add_pins(
 
 add_pins_triangle = partial(add_pins, function=add_pin_triangle)
 add_pins_center = partial(add_pins, function=add_pin_rectangle)
+add_pin_inside1nm = partial(
+    add_pin_rectangle_inside, pin_length=1 * nm, layer_label=None
+)
+add_pin_inside2um = partial(add_pin_rectangle_inside, pin_length=2, layer_label=None)
+add_pins_inside1nm = partial(add_pins, function=add_pin_inside1nm)
+add_pins_inside2um = partial(add_pins, function=add_pin_inside2um)
 
 
 def add_settings_label(
@@ -497,7 +530,7 @@ def add_settings_label(
 def add_instance_label(
     component: Component,
     reference: ComponentReference,
-    instance_name: Optional[str] = None,
+    instance_name: str | None = None,
     layer: LayerSpec = "LABEL_INSTANCE",
 ) -> None:
     """Adds label to a reference in a component."""
@@ -505,23 +538,21 @@ def add_instance_label(
         instance_name
         or f"{reference.parent.name},{int(reference.x)},{int(reference.y)}"
     )
-    x = snap_to_grid(reference.x)
-    y = snap_to_grid(reference.y)
 
     component.add_label(
         text=instance_name,
-        position=(x, y),
+        position=reference.center,
         layer=layer,
     )
 
 
 def add_pins_and_outline(
     component: Component,
-    reference: Optional[ComponentReference] = None,
-    add_outline_function: Optional[Callable] = add_outline,
-    add_pins_function: Optional[Callable] = add_pins,
-    add_settings_function: Optional[Callable] = add_settings_label,
-    add_instance_label_function: Optional[Callable] = add_settings_label,
+    reference: ComponentReference | None = None,
+    add_outline_function: Callable | None = add_outline,
+    add_pins_function: Callable | None = add_pins,
+    add_settings_function: Callable | None = add_settings_label,
+    add_instance_label_function: Callable | None = add_settings_label,
 ) -> None:
     """Add markers.
 

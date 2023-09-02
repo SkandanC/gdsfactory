@@ -2,15 +2,16 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Any
 
 import pydantic
 
-MAX_NAME_LENGTH = 32
+from gdsfactory.config import CONF
 
 
-@pydantic.validate_arguments
-def get_name_short(name: str, max_name_length=MAX_NAME_LENGTH) -> str:
+@pydantic.validate_call
+def get_name_short(name: str, max_name_length=CONF.max_name_length) -> str:
     """Returns a short name."""
     if len(name) > max_name_length:
         name_hash = hashlib.md5(name.encode()).hexdigest()[:8]
@@ -97,15 +98,37 @@ def print_first_letters_warning(**kwargs) -> None:
         )
 
 
-def clean_name(name: str, remove_dots: bool = False) -> str:
+def clean_name(
+    name: str,
+    remove_dots: bool = False,
+    allowed_characters: list[str] | None = None,
+) -> str:
     """Return a string with correct characters for a cell name.
 
-    [a-zA-Z0-9]
+    By default, the characters [a-zA-Z0-9] are allowed.
 
-    FIXME: only a few characters are currently replaced.
-        This function has been updated only on case-by-case basis
+    Args:
+        name (str): The name to clean.
+        remove_dots (bool, optional): Whether to remove dots from the name. Defaults to False.
+        allowed_characters (list[str], optional): List of additional allowed characters. Defaults to an empty list.
 
+    Returns:
+        str: The cleaned name.
     """
+
+    # Default allowed characters, including underscore
+    allowed = r"a-zA-Z0-9_"
+
+    allowed_characters = allowed_characters or []
+
+    # Add additional allowed characters
+    for char in allowed_characters:
+        allowed += re.escape(char)
+
+    # Pattern for characters to be replaced
+    pattern = f"[^{allowed}]"
+
+    # Replacements map
     replace_map = {
         " ": "_",
         "!": "",
@@ -131,9 +154,12 @@ def clean_name(name: str, remove_dots: bool = False) -> str:
 
     if remove_dots:
         replace_map["."] = ""
-    for k, v in list(replace_map.items()):
-        name = name.replace(k, v)
-    return name
+
+    # Replace characters using the replace_map
+    def replace_match(match):
+        return replace_map.get(match.group(0), "")
+
+    return re.sub(pattern, replace_match, name)
 
 
 def clean_value(value: Any) -> str:
@@ -154,16 +180,14 @@ def test_clean_name() -> None:
 
 
 if __name__ == "__main__":
-    # test_cell()
     # testclean_value_json()
-    # import gdsfactory as gf
+    import gdsfactory as gf
 
     # print(clean_value(gf.components.straight))
     # c = gf.components.straight(polarization="TMeraer")
     # print(c.settings["polarization"])
     # print(clean_value(11.001))
-    # c = gf.components.straight(length=10)
-    # c = gf.components.straight(length=10)
+    c = gf.components.straight(length=10)
 
     # print(c.name)
     # print(c)
@@ -176,13 +200,13 @@ if __name__ == "__main__":
     # print(clean_value([1, 2.4324324, 3]))
     # print(clean_value((0.001, 24)))
     # print(clean_value({"a": 1, "b": 2}))
-    import gdsfactory as gf
+    # import gdsfactory as gf
 
-    d = {
-        "X": gf.components.crossing45(port_spacing=40.0),
-        "-": gf.components.compensation_path(
-            crossing45=gf.components.crossing45(port_spacing=40.0)
-        ),
-    }
-    d2 = clean_value(d)
-    print(d2)
+    # d = {
+    #     "X": gf.components.crossing45(port_spacing=40.0),
+    #     "-": gf.components.compensation_path(
+    #         crossing45=gf.components.crossing45(port_spacing=40.0)
+    #     ),
+    # }
+    # d2 = clean_value(d)
+    # print(d2)

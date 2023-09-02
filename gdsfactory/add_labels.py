@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Dict, List, Optional, Union
 
 import gdsfactory as gf
 from gdsfactory.component import Component, ComponentReference
@@ -12,13 +12,39 @@ from gdsfactory.port import Port
 from gdsfactory.typings import ComponentOrReference, Label, LayerSpec
 
 
+def get_input_label_text_dash(
+    port: Port,
+    gc: ComponentReference | Component,
+    gc_index: int | None = None,
+    component_name: str | None = None,
+    prefix: str = "",
+    suffix: str = "",
+) -> str:
+    """Returns text with `GratingName-ComponentName-PortName`."""
+    gc_name = gc.name if isinstance(gc, Component) else gc.parent.name
+    return f"{prefix}{gc_name}-{component_name or port.parent.name}-{port.name}{suffix}"
+
+
+def get_input_label_text_dash_loopback(
+    port: Port,
+    gc: ComponentReference | Component,
+    gc_index: int | None = None,
+    component_name: str | None = None,
+    prefix: str = "",
+) -> str:
+    """Returns text with `GratingName-ComponentName-Loopback`."""
+    gc_name = gc.name if isinstance(gc, Component) else gc.parent.name
+    return f"{prefix}{gc_name}-{component_name or port.parent.name}-loopback_{gc_index}"
+
+
 def get_input_label_text(
     port: Port,
-    gc: Union[ComponentReference, Component],
-    gc_index: Optional[int] = None,
-    component_name: Optional[str] = None,
-    prefix: str = "",
-    label_prefix: str = "opt",
+    gc: ComponentReference | Component,
+    gc_index: int | None = None,
+    component_name: str | None = None,
+    component_prefix: str = "",
+    prefix: str = "opt",
+    suffix: str = "",
 ) -> str:
     """Returns text string for an optical port based on grating coupler.
 
@@ -26,25 +52,25 @@ def get_input_label_text(
 
     Args:
         port: to label.
-        gc: grating coupler.
+        gc: grating coupler component or reference.
         gc_index: grating_coupler index, which grating_coupler we are labelling.
         component_name: optional name.
-        prefix: prefix on the label cell_name.
-        label_prefix: prefix to add.
+        component_prefix: component prefix.
+        prefix: prefix to add to the label.
     """
     polarization = gc.info.get("polarization") or gc.metadata_child.get("polarization")
     wavelength = gc.info.get("wavelength") or gc.metadata_child.get("wavelength")
 
     if polarization not in ["te", "tm"]:
         raise ValueError(f"polarization {polarization!r} needs to be [te, tm]")
-    if not isinstance(wavelength, (int, float)) or not 0.5 < wavelength < 5.0:
+    if not isinstance(wavelength, int | float) or not 0.5 < wavelength < 5.0:
         raise ValueError(
             f"{wavelength} needs to be > 0.5um and < 5um. Make sure it's in um"
         )
 
     component_name = component_name or port.parent.metadata_child.get("name")
 
-    text = f"{label_prefix}_{polarization}_{int(wavelength*1e3)}_({prefix}{component_name})"
+    text = f"{prefix}_{polarization}_{int(wavelength*1e3)}_({component_prefix}{component_name}){suffix}"
     if isinstance(gc_index, int):
         text += f"_{gc_index}_{port.name}"
     else:
@@ -53,17 +79,16 @@ def get_input_label_text(
     return text
 
 
-def get_input_label_text_loopback(prefix: str = "loopback_", **kwargs):
-    return get_input_label_text(prefix=prefix, **kwargs)
+get_input_label_text_loopback = partial(get_input_label_text, prefix="loopback_")
 
 
 def get_input_label(
     port: Port,
     gc: ComponentReference,
-    gc_index: Optional[int] = None,
+    gc_index: int | None = None,
     gc_port_name: str = "o1",
     layer_label: LayerSpec = "LABEL",
-    component_name: Optional[str] = None,
+    component_name: str | None = None,
     get_input_label_text_function=get_input_label_text,
 ) -> Label:
     """Returns a label with component info for a given grating coupler.
@@ -86,8 +111,7 @@ def get_input_label(
     if gc_port_name is None:
         gc_port_name = list(gc.ports.values())[0].name
 
-    layer_label = gf.get_layer(layer_label)
-    layer, texttype = _parse_layer(layer_label)
+    layer, texttype = gf.get_layer(layer_label)
     return Label(
         text=text,
         origin=gc.ports[gc_port_name].center,
@@ -97,12 +121,17 @@ def get_input_label(
     )
 
 
+get_input_label_dash = partial(
+    get_input_label, get_input_label_text_function=get_input_label_text_dash
+)
+
+
 def get_input_label_electrical(
     port: Port,
     gc_index: int = 0,
-    component_name: Optional[str] = None,
+    component_name: str | None = None,
     layer_label: LayerSpec = "LABEL",
-    gc: Optional[ComponentReference] = None,
+    gc: ComponentReference | None = None,
 ) -> Label:
     """Returns a label to test component info for a given electrical port.
 
@@ -139,7 +168,7 @@ def add_labels(
     component: Component,
     get_label_function: Callable = get_input_label_electrical,
     layer_label: LayerSpec = "LABEL",
-    gc: Optional[Component] = None,
+    gc: Component | None = None,
     **kwargs,
 ) -> Component:
     """Returns component with labels on ports.
@@ -183,7 +212,7 @@ def add_siepic_labels(
     model: str = "auto",
     library: str = "auto",
     label_layer: LayerSpec = "DEVREC",
-    spice_params: Optional[Union[Dict, List, str]] = None,
+    spice_params: dict | list | str | None = None,
     label_spacing: float = 0.2,
 ) -> Component:
     """Adds labels and returns the same component.
@@ -231,7 +260,7 @@ def add_siepic_labels(
 def add_labels_to_ports(
     component: Component,
     label_layer: LayerSpec = "LABEL",
-    port_type: Optional[str] = None,
+    port_type: str | None = None,
     **kwargs,
 ) -> Component:
     """Add labels to component ports.
@@ -261,7 +290,7 @@ def add_labels_to_ports(
 def add_labels_to_ports_x_y(
     component: Component,
     label_layer: LayerSpec = "LABEL",
-    port_type: Optional[str] = None,
+    port_type: str | None = None,
     **kwargs,
 ) -> Component:
     """Add labels to component ports. Prepends -x-y coordinates
@@ -312,10 +341,10 @@ def get_labels(
     component: ComponentOrReference,
     get_label_function: Callable = get_input_label_electrical,
     layer_label: LayerSpec = "LABEL",
-    gc: Optional[Component] = None,
-    component_name: Optional[str] = None,
+    gc: Component | None = None,
+    component_name: str | None = None,
     **kwargs,
-) -> List[Label]:
+) -> list[Label]:
     """Returns component labels on ports.
 
     Args:
@@ -363,6 +392,5 @@ if __name__ == "__main__":
     # c = test_add_labels_electrical()
     # c = gf.routing.add_fiber_single(c)
 
-    c = gf.components.pad()
-    add_labels_to_ports_vertical_dc(c)
+    c = gf.components.pad(decorator=add_labels_to_ports_vertical_dc)
     c.show(show_ports=True)

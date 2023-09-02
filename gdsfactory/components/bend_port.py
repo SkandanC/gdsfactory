@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import gdsfactory as gf
 from gdsfactory.components.bend_circular import bend_circular
 from gdsfactory.components.straight_heater_metal import straight_heater_metal
@@ -11,22 +9,22 @@ from gdsfactory.typings import ComponentSpec, CrossSectionSpec
 @gf.cell
 def bend_port(
     component: ComponentSpec = straight_heater_metal,
-    port_name: str = "e1",
-    port_name2: str = "e2",
-    port_name1_bend: Optional[str] = None,
-    port_name2_bend: Optional[str] = None,
+    port_name: str = "l_e1",
+    port_name2: str = "r_e1",
+    port_name1_bend: str | None = None,
+    port_name2_bend: str | None = None,
     cross_section: CrossSectionSpec = "metal3_with_bend",
     bend: ComponentSpec = bend_circular,
     angle: float = 180,
-    extension_length: Optional[float] = None,
+    extension_length: float | None = None,
     **kwargs,
 ) -> gf.Component:
     """Returns a component with a bend and a straight extension.
 
     Args:
         component: to bend.
-        port_name: of the component.
-        port_name2: of the component, to extend to.
+        port_name: of the component port origin.
+        port_name2: of the component port destination.
         port_name1_bend: for bend port.
         port_name2_bend: for bend port.
         cross_section: for the bend.
@@ -40,7 +38,9 @@ def bend_port(
     c.component = component
 
     if port_name not in component.ports:
-        raise ValueError(f"port_name {port_name} not in {list(component.ports.keys())}")
+        raise ValueError(
+            f"port_name {port_name!r} not in {list(component.ports.keys())}"
+        )
 
     extension_length = extension_length or abs(
         component.ports[port_name2].center[0] - component.ports[port_name].center[0]
@@ -75,5 +75,6 @@ if __name__ == "__main__":
     # c = gf.components.straight_heater_metal()
     # c = bend_port(component=c, port_name="e1")
     # c = bend_port(component=gf.components.mzi_phase_shifter)
+    # c = gf.components.mzi2x2_2x2(straight_x_top="straight_heater_metal")
     c = bend_port()
     c.show(show_ports=True)

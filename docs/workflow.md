@@ -3,11 +3,7 @@
 You'll need 2 windows:
 
 1. A text editor or IDE (Visual Studio Code, Pycharm, Spyder, neovim, Atom, Jupyterlab ...)
-2. Klayout to Visualize the GDS files.
-
-`Component.show()` will stream the GDS to KLayout so KLayout needs to be open.
-Make sure you also run `gf tool install` from the terminal to install the `gdsfactory` to `klayout` interface.
-
+2. Klayout to Visualize the GDS files. With the `klive` klayout package for showing GDS files when you run. Tools -> Manage Packages `Component.show()`
 
 ## 1. Standard Python flow
 
@@ -17,6 +13,9 @@ Make sure you also run `gf tool install` from the terminal to install the `gdsfa
 
 ![windows](https://i.imgur.com/ZHEAotn.png)
 
+The standard python flow can leverage all machine learning tools such as Jupyter notebooks.
+
+![notebooks](https://i.imgur.com/jORMG3V.png)
 
 ## 2. File-watcher flow
 
@@ -28,7 +27,14 @@ For building large components can use a file-watcher and see your updates in KLa
 
 ![filewatcher](https://i.imgur.com/DNWgVRp.png)
 
+## 3. Webapp flow
 
-## 3. Jupyter Notebook based flow
+You can also use a webapp to:
 
-![notebooks](https://i.imgur.com/jORMG3V.png)
+- visualize your PDK components and change the Parametric Cell (PCell) settings.
+- visualize the GDS layout of the last saved files in a particular directory.
+- turn on a file watcher and watch changing files in specific folders.
+
+To run the webapp you can just run `gf webapp` in the terminal. By default it will use the `generic_pdk` technology.
+
+To use a different PDK you can use the `--pdk` flag. For example `gf webapp --pdk ubcpdk`.

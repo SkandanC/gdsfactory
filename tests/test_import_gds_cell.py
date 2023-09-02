@@ -10,8 +10,6 @@ def test_import_gds_cell() -> None:
     c0 = gf.components.rectangle()
     gdspath = c0.write_gds()
 
-    gf.clear_cache()
-
     # top cell with rectangle reference
     c1 = gf.import_gds(gdspath)
     assert np.isclose(c1.area(), 8.0)
@@ -27,14 +25,12 @@ if __name__ == "__main__":
     c0 = gf.c.rectangle()
     gdspath = c0.write_gds()
 
-    gf.clear_cache()
-
     # top cell with rectangle reference
     c1 = gf.import_gds(gdspath)
     assert np.isclose(c1.area(), 8.0)
-    assert c1.name == "rectangle"
+    assert c1.name == "rectangle", c1.name
 
     # compass is top cell
     c2 = gf.import_gds(gdspath, cellname="compass")
     assert np.isclose(c2.area(), 8.0)
-    assert c2.name == "compass"
+    assert c2.name == "compass", c2.name

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from functools import partial
 
 import numpy as np
 
@@ -22,11 +22,11 @@ def array_with_via(
     spacing: float = 150.0,
     via_spacing: float = 10.0,
     straight_length: float = 60.0,
-    cross_section: Optional[CrossSectionSpec] = metal2,
+    cross_section: CrossSectionSpec | None = metal2,
     via_stack: ComponentSpec = via_stack_factory,
     via_stack_dy: float = 0,
     port_orientation: float = 180,
-    port_offset: Optional[Float2] = None,
+    port_offset: Float2 | None = None,
     **kwargs,
 ) -> Component:
     """Returns an array of vias in X axis with fanout waveguides facing west.
@@ -98,17 +98,17 @@ def array_with_via_2d(
     """Returns 2D array with fanout waveguides facing west.
 
     Args:
-        spacing: 2D spacing
-        columns:
-        rows:
-        kwargs:
-            component: to replicate
-            columns: number of components
-            spacing: float
-            via_spacing: for fanout
-            straight_length: length of the straight at the end
-            via_stack_port_name:
-            **kwargs
+        spacing: 2D spacing x,y in um.
+        columns: number of columns.
+        rows: number of rows.
+
+    Keyword Args:
+        component: to replicate
+        columns: number of components
+        spacing: float
+        via_spacing: for fanout
+        straight_length: length of the straight at the end
+        via_stack_port_name:
     """
     row = array_with_via(columns=columns, spacing=spacing[0], **kwargs)
     return array(component=row, rows=rows, columns=1, spacing=(0, spacing[1]))
@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
     PDK = get_generic_pdk()
     PDK.activate()
-    via_stack_big = gf.partial(via_stack_factory, size=(30, 20))
+    via_stack_big = partial(via_stack_factory, size=(30, 20))
     # c = array_with_via(columns=3, width=10, via_spacing=20, port_orientation=90)
     c = array_with_via_2d(
         columns=2,

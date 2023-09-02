@@ -1,8 +1,6 @@
-from typing import Tuple
-
 from pydantic import BaseModel
 
-Layer = Tuple[int, int]
+Layer = tuple[int, int]
 
 
 class GenericLayerMap(BaseModel):
@@ -53,6 +51,7 @@ class GenericLayerMap(BaseModel):
     FLOORPLAN: Layer = (64, 0)
     TEXT: Layer = (66, 0)
     PORT: Layer = (1, 10)
+    WG_PIN: Layer = (1, 10)
     PORTE: Layer = (1, 11)
     PORTH: Layer = (70, 0)
     SHOW_PORTS: Layer = (1, 12)

@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union
-
 import numpy as np
 
 import gdsfactory as gf
 from gdsfactory.components.text import text
 from gdsfactory.typings import Anchor, LayerSpec
 
-Coordinate = Union[Tuple[float, float], Tuple[int, int]]
+Number = float | int
+Coordinate = tuple[Number, Number]
 
 
 @gf.cell_without_validator
 def die_bbox_frame(
-    bbox: Tuple[Coordinate, Coordinate] = ((-1.0, -1.0), (3.0, 4.0)),
+    bbox: tuple[Coordinate, Coordinate] = ((-1.0, -1.0), (3.0, 4.0)),
     street_width: float = 100.0,
     street_length: float = 1000.0,
-    die_name: Optional[str] = None,
+    die_name: str | None = None,
     text_size: float = 100.0,
     text_anchor: Anchor = "sw",
     layer: LayerSpec = "M3",
@@ -72,10 +71,10 @@ def die_bbox_frame(
             sy,
         ]
     )
-    D.add_polygon([+xpts, +ypts], layer=layer)
-    D.add_polygon([-xpts, +ypts], layer=layer)
-    D.add_polygon([+xpts, -ypts], layer=layer)
-    D.add_polygon([-xpts, -ypts], layer=layer)
+    D.add_polygon([x + xpts, y + ypts], layer=layer)
+    D.add_polygon([x - xpts, y + ypts], layer=layer)
+    D.add_polygon([x + xpts, y - ypts], layer=layer)
+    D.add_polygon([x - xpts, y - ypts], layer=layer)
 
     if die_name:
         t = D.add_ref(text(text=die_name, size=text_size, layer=layer))
@@ -94,7 +93,9 @@ def die_bbox_frame(
         elif text_anchor == "se":
             t.xmax, t.ymin = [sx - d, -sy + d]
 
-    return D.move((x, y)).flatten()
+        t.move((x, y))
+
+    return D
 
 
 if __name__ == "__main__":

@@ -5,8 +5,6 @@ Adapted from PHIDL https://github.com/amccaugh/phidl/ by Adam McCaughan
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
-
 import gdstk
 
 import gdsfactory as gf
@@ -17,21 +15,29 @@ from gdsfactory.component_layout import _parse_layer
 @gf.cell
 def trim(
     component: Component,
-    domain: List[Tuple[float, float]],
+    domain: list[tuple[float, float]],
     precision: float = 1e-4,
-    return_ports: Optional[bool] = False,
+    return_ports: bool | None = False,
 ) -> Component:
     """Trim a component by another geometry, preserving the component's layers and ports.
 
     Useful to get a smaller component from a larger one for simulation.
 
     Args:
-        component: Component(/Reference)
+        component: Component(/Reference).
         domain: list of array-like[N][2] representing the boundary of the component to keep.
         precision: float Desired precision for rounding vertex coordinates.
         return_ports: whether to return the included ports or not. Ports are always renamed to avoid inheritance conflicts.
 
     Returns: New component with layers (and possibly ports) of the component restricted to the domain.
+
+    .. plot::
+      :include-source:
+
+      import gdsfactory as gf
+      c = gf.components.straight_pin(length=10, taper=None)
+      trimmed_c = gf.geometry.trim(component=c, domain=[[0, -5], [0, 5], [5, 5], [5, -5]])
+      trimmed_c.plot_matplotlib()
     """
     domain_shape = gdstk.Polygon(domain)
     c = Component()

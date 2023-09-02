@@ -1,43 +1,96 @@
-# ---
-# jupyter:
-#   jupytext:
-#     text_representation:
-#       extension: .py
-#       format_name: light
-#       format_version: '1.5'
-#       jupytext_version: 1.14.4
-#   kernelspec:
-#     display_name: Python 3 (ipykernel)
-#     language: python
-#     name: python3
-# ---
-
 # # Components with hierarchy
 #
 # ![](https://i.imgur.com/3pczkyM.png)
 #
 # You can define components Parametric cells (waveguides, bends, couplers) with basic input parameters (width, length, radius ...) and reuse the PCells in more complex PCells.
 
-# + tags=[]
+# +
 from functools import partial
-import toolz
 
-from gdsfactory.typings import ComponentSpec
+import toolz
 
 import gdsfactory as gf
 from gdsfactory.generic_tech import get_generic_pdk
+from gdsfactory.typings import ComponentSpec, CrossSectionSpec
 
 gf.config.rich_output()
 PDK = get_generic_pdk()
 PDK.activate()
+# -
 
 
-# + tags=[]
+# **Problem**
+#
+# When using hierarchical cells where you pass `N` subcells with `M` parameters you can end up with `N*M` parameters. This is make code hard to read.
+#
+
+
+# +
+@gf.cell
+def bend_with_straight_with_too_many_input_parameters(
+    bend=gf.components.bend_euler,
+    straight=gf.components.straight,
+    length: float = 3,
+    angle: float = 90.0,
+    p: float = 0.5,
+    with_arc_floorplan: bool = True,
+    npoints: int | None = None,
+    direction: str = "ccw",
+    with_bbox: bool = True,
+    cross_section: CrossSectionSpec = "strip",
+) -> gf.Component:
+    """ "As hierarchical cells become more complex, the number of input parameters can increase significantly."""
+    c = gf.Component()
+    b = bend(
+        angle=angle,
+        p=p,
+        with_arc_floorplan=with_arc_floorplan,
+        npoints=npoints,
+        direction=direction,
+        with_bbox=with_bbox,
+        cross_section=cross_section,
+    )
+    s = straight(length=length, with_bbox=with_bbox, cross_section=cross_section)
+
+    bref = c << b
+    sref = c << s
+
+    sref.connect("o2", bref.ports["o2"])
+    c.info["length"] = b.info["length"] + s.info["length"]
+    return c
+
+
+c = bend_with_straight_with_too_many_input_parameters()
+c.plot()
+# -
+
+
+# **Solution**
+#
+# You can use a ComponentSpec parameter for every subcell. The ComponentSpec can be a dictionary with arbitrary number of settings, a string, or a function.
+#
+# ## ComponentSpec
+#
+# When defining a `Parametric cell` you can use other `ComponentSpec` as an arguments. It can be a:
+#
+# 1. string: function name of a cell registered on the active PDK. `"bend_circular"`
+# 2. dict: `dict(component='bend_circular', settings=dict(radius=20))`
+# 3. function: Using `functools.partial` you can customize the default parameters of a function.
+#
+
+
+# +
 @gf.cell
 def bend_with_straight(
     bend: ComponentSpec = gf.components.bend_euler,
     straight: ComponentSpec = gf.components.straight,
 ) -> gf.Component:
+    """Much simpler version.
+
+    Args:
+        bend: input bend.
+        straight: output straight.
+    """
     c = gf.Component()
     b = gf.get_component(bend)
     s = gf.get_component(straight)
@@ -51,82 +104,60 @@ def bend_with_straight(
 
 
 c = bend_with_straight()
-print(c.metadata["info"]["length"])
-c
+c.plot()
 # -
-
-# ## ComponentSpec
-#
-# When defining a `Parametric cell` you can use other `ComponentSpec` as an argument. It can be a:
-#
-# 1. string: function name of a cell registered on the active PDK. `"bend_circular"`
-# 2. dict: `dict(component='bend_circular', settings=dict(radius=20))`
-# 3. function: Using `functools.partial` you can customize the default parameters of a function.
 
 # ### 1. string
+#
+# You can use any string registered in the `Pdk`. Go to the PDK tutorial to learn how to register cells in a PDK.
 
-# + tags=[]
 c = bend_with_straight(bend="bend_circular")
-c
-# -
+c.plot()
 
 # ### 2. dict
-# Lets **customize** the functions that we pass.
-# For example, we want to increase the radius of the bend from the default 10um to 20um.
+#
+# You can pass a dict of settings.
 
-# + tags=[]
 c = bend_with_straight(bend=dict(component="bend_circular", settings=dict(radius=20)))
-c
-# -
+c.plot()
 
 # ### 3. function
 #
-# Partial lets you define different default parameters for a function, so you can modify the settings for the child cells.
+# You can pass a function of a function with customized default input parameters `from functools import partial`
+#
+# Partial lets you define different default parameters for a function, so you can modify the default settings for each child cell.
 
-# + tags=[]
-c = bend_with_straight(bend=gf.partial(gf.components.bend_circular, radius=30))
-c
+c = bend_with_straight(bend=partial(gf.components.bend_circular, radius=30))
+c.plot()
 
-# + tags=[]
 bend20 = partial(gf.components.bend_circular, radius=20)
 b = bend20()
-b
+b.plot()
 
-# + tags=[]
 type(bend20)
 
-# + tags=[]
 bend20.func.__name__
 
-# + tags=[]
 bend20.keywords
 
-# + tags=[]
 b = bend_with_straight(bend=bend20)
 print(b.metadata["info"]["length"])
-b
+b.plot()
 
-# + tags=[]
 # You can still modify the bend to have any bend radius
 b3 = bend20(radius=10)
-b3
-# -
+b3.plot()
 
 # ## PDK custom fab
 #
 # You can define a new PDK by creating function that customize partial parameters of the generic functions.
 #
 # Lets say that this PDK uses layer (41, 0) for the pads (instead of the layer used in the generic pad function).
-#
-# You can also access `functools.partial` from `gf.partial`
 
-# + tags=[]
-pad = gf.partial(gf.components.pad, layer=(41, 0))
+pad_custom_layer = partial(gf.components.pad, layer=(41, 0))
 
-# + tags=[]
-c = pad()
-c
-# -
+c = pad_custom_layer()
+c.plot()
 
 # ## Composing functions
 #
@@ -134,38 +165,30 @@ c
 #
 # Lets say that we want to add tapers and grating couplers to a wide waveguide.
 
-# + tags=[]
 c1 = gf.components.straight()
-c1
+c1.plot()
 
-# + tags=[]
-straight_wide = gf.partial(gf.components.straight, width=3)
+straight_wide = partial(gf.components.straight, width=3)
 c3 = straight_wide()
-c3
+c3.plot()
 
-# + tags=[]
 c1 = gf.components.straight(width=3)
-c1
+c1.plot()
 
-# + tags=[]
 c2 = gf.add_tapers(c1)
-c2
+c2.plot()
 
-# + tags=[]
 c2.metadata_child["changed"]  # You can still access the child metadata
 
-# + tags=[]
 c3 = gf.routing.add_fiber_array(c2, with_loopback=False)
-c3
+c3.plot()
 
-# + tags=[]
 c3.metadata_child["changed"]  # You can still access the child metadata
-# -
 
 # Lets do it with a **single** step thanks to `toolz.pipe`
 
-# + tags=[]
-add_fiber_array = gf.partial(gf.routing.add_fiber_array, with_loopback=False)
+# +
+add_fiber_array = partial(gf.routing.add_fiber_array, with_loopback=False)
 add_tapers = gf.add_tapers
 
 # pipe is more readable than the equivalent add_fiber_array(add_tapers(c1))
@@ -177,41 +200,30 @@ c3
 #
 # For example:
 
-# + tags=[]
 add_tapers_fiber_array = toolz.compose_left(add_tapers, add_fiber_array)
 c4 = add_tapers_fiber_array(c1)
-c4
-# -
+c4.plot()
 
 # is equivalent to
 
-# + tags=[]
 c5 = add_fiber_array(add_tapers(c1))
-c5
-# -
+c5.plot()
 
 # as well as equivalent to
 
-# + tags=[]
 add_tapers_fiber_array = toolz.compose(add_fiber_array, add_tapers)
 c6 = add_tapers_fiber_array(c1)
-c6
-# -
+c6.plot()
 
 # or
 
-# + tags=[]
 c7 = toolz.pipe(c1, add_tapers, add_fiber_array)
-c7
+c7.plot()
 
-# + tags=[]
 c7.metadata_child["changed"]  # You can still access the child metadata
 
-# + tags=[]
 c7.metadata["child"]["child"]["name"]
 
-# + tags=[]
 c7.metadata["child"]["child"]["function_name"]
 
-# + tags=[]
 c7.metadata["changed"].keys()

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Tuple
-
 import gdsfactory as gf
 from gdsfactory import Component
 from gdsfactory.cross_section import strip
@@ -37,7 +35,10 @@ def _generate_fins(c, x, fin_size, bend):
 
 def _generate_bends(c, x_top, x_bot, dx, dy, gap):
     input_bend_top = (
-        c << gf.components.bend_s(size=(dx, dy), cross_section=x_top.copy()).mirror()
+        c
+        << gf.components.bend_s(
+            size=(dx, dy), cross_section=x_top.model_copy()
+        ).mirror()
     )
 
     input_bend_bottom = c << gf.components.bend_s(
@@ -106,7 +107,7 @@ def cdc(
     width_top: float = 2.0,
     width_bot: float = 0.75,
     fins: bool = False,
-    fin_size: Tuple[float, float] = (0.2, 0.05),
+    fin_size: tuple[float, float] = (0.2, 0.05),
     cross_section: CrossSectionSpec = strip,
     **kwargs,
 ) -> Component:
@@ -133,8 +134,8 @@ def cdc(
         cross_section kwargs.
     """
     x = gf.get_cross_section(cross_section, **kwargs)
-    x_top = x.copy(width=width_top)
-    x_bot = x.copy(width=width_bot)
+    x_top = x.model_copy(update=dict(width=width_top))
+    x_bot = x.model_copy(update=dict(width=width_bot))
 
     c = gf.Component()
 
@@ -182,5 +183,4 @@ def cdc(
 
 if __name__ == "__main__":
     c = cdc(fins=False)
-    print(c.ports.keys())
     c.show(show_ports=True)

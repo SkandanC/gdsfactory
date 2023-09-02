@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Optional
 
 import gdsfactory as gf
 from gdsfactory.cell import cell
@@ -19,14 +18,14 @@ from gdsfactory.typings import ComponentSpec, CrossSectionSpec
 def mzi(
     delta_length: float = 10.0,
     length_y: float = 2.0,
-    length_x: Optional[float] = 0.1,
+    length_x: float | None = 0.1,
     bend: ComponentSpec = bend_euler,
     straight: ComponentSpec = straight_function,
-    straight_y: Optional[ComponentSpec] = None,
-    straight_x_top: Optional[ComponentSpec] = None,
-    straight_x_bot: Optional[ComponentSpec] = None,
+    straight_y: ComponentSpec | None = None,
+    straight_x_top: ComponentSpec | None = None,
+    straight_x_bot: ComponentSpec | None = None,
     splitter: ComponentSpec = "mmi1x2",
-    combiner: Optional[ComponentSpec] = None,
+    combiner: ComponentSpec | None = None,
     with_splitter: bool = True,
     port_e1_splitter: str = "o2",
     port_e0_splitter: str = "o3",
@@ -34,8 +33,10 @@ def mzi(
     port_e0_combiner: str = "o3",
     nbends: int = 2,
     cross_section: CrossSectionSpec = "strip",
-    cross_section_x_top: Optional[CrossSectionSpec] = None,
-    cross_section_x_bot: Optional[CrossSectionSpec] = None,
+    cross_section_x_top: CrossSectionSpec | None = None,
+    cross_section_x_bot: CrossSectionSpec | None = None,
+    mirror_bot: bool = False,
+    add_optical_ports_arms: bool = False,
 ) -> Component:
     """Mzi.
 
@@ -59,6 +60,9 @@ def mzi(
         cross_section: for routing (sxtop/sxbot to combiner).
         cross_section_x_top: optional top cross_section (defaults to cross_section).
         cross_section_x_bot: optional bottom cross_section (defaults to cross_section).
+        mirror_bot: if true, mirrors the bottom arm.
+        add_optical_ports_arms: add all other optical ports in the arms
+            with top_ and bot_ prefix.
 
     .. code::
 
@@ -116,6 +120,8 @@ def mzi(
         else gf.get_component(straight_x_bot)
     )
     sxb = c << straight_x_bot
+    if mirror_bot:
+        sxb.mirror()
     sxb.connect("o1", b6.ports["o2"])
 
     b1 = c << bend
@@ -139,7 +145,8 @@ def mzi(
     sxt.connect("o1", b2.ports["o1"])
 
     cp2.mirror()
-    cp2.xmin = sxt.ports["o2"].x + bend.info["radius"] * nbends + 0.1
+    xs = gf.get_cross_section(cross_section)
+    cp2.xmin = sxt.ports["o2"].x + bend.info["radius"] * nbends + 2 * xs.min_length
 
     route = get_route(
         sxt.ports["o2"],
@@ -156,6 +163,7 @@ def mzi(
         straight=straight,
         bend=bend_spec,
         cross_section=cross_section,
+        with_sbend=False,
     )
     c.add(route.references)
 
@@ -167,14 +175,23 @@ def mzi(
     cp2.name = "cp2"
 
     if with_splitter:
-        c.add_ports(cp1.get_ports_list(orientation=180), prefix="in")
+        c.add_ports(cp1.get_ports_list(orientation=180), prefix="in_")
     else:
         c.add_port("o1", port=b1.ports["o1"])
         c.add_port("o2", port=b5.ports["o1"])
-    c.add_ports(cp2.get_ports_list(orientation=0), prefix="out")
-    c.add_ports(sxt.get_ports_list(port_type="electrical"), prefix="top")
-    c.add_ports(sxb.get_ports_list(port_type="electrical"), prefix="bot")
-    c.auto_rename_ports()
+    c.add_ports(cp2.get_ports_list(orientation=0), prefix="ou_")
+
+    c.add_ports(sxt.get_ports_list(port_type="electrical"), prefix="top_")
+    c.add_ports(sxb.get_ports_list(port_type="electrical"), prefix="bot_")
+    c.add_ports(sxt.get_ports_list(port_type="placement"), prefix="top_")
+    c.add_ports(sxb.get_ports_list(port_type="placement"), prefix="bot_")
+
+    c.auto_rename_ports(port_type="optical", prefix="o")
+
+    if add_optical_ports_arms:
+        c.add_ports(sxt.get_ports_list(port_type="optical"), prefix="top_")
+        c.add_ports(sxb.get_ports_list(port_type="optical"), prefix="bot_")
+
     return c
 
 
@@ -204,12 +221,22 @@ mzi_coupler = partial(
 
 
 if __name__ == "__main__":
+    c = mzi()
+    print(sorted([i.name for i in c.get_dependencies()]))
+    # from gdsfactory import get_generic_pdk
+
+    # pdk = get_generic_pdk()
+    # pdk.activate()
+
+    # c = mzi(cross_section="strip")
     # c = gf.components.mzi2x2_2x2(straight_x_top="straight_heater_metal")
     # c.show(show_ports=True)
 
-    c = gf.components.mzi2x2_2x2(straight_x_top="straight_heater_metal")
-    c2 = gf.routing.add_fiber_array(c)
-    c2.show()
+    # c = gf.components.mzi2x2_2x2(straight_x_top="straight_heater_metal")
+    c = gf.routing.add_fiber_array(c)
+    # gdspath = c.write_gds(flatten_invalid_refs=True)
+    # gf.show(gdspath)
+    c.show(show_ports=True)
 
     # c1.write_gds("a.gds")
 

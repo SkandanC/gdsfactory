@@ -1,17 +1,3 @@
-# ---
-# jupyter:
-#   jupytext:
-#     text_representation:
-#       extension: .py
-#       format_name: light
-#       format_version: '1.5'
-#       jupytext_version: 1.14.4
-#   kernelspec:
-#     display_name: Python 3 (ipykernel)
-#     language: python
-#     name: python3
-# ---
-
 # # YAML Place and AutoRoute
 #
 # You have two options for working with gdsfactory:
@@ -33,15 +19,10 @@
 # - connections: to connect instance ports to other ports (without routes)
 # - ports: define input and output circuit ports
 #
-#
-# When running this tutorial make sure you UNCOMMENT this line `%matplotlib widget` so you can see the changes in the YAML file both in KLayout and matplotlib.
-#
-# `# %matplotlib widget`  -> `%matplotlib widget`
 
 # +
-# # %matplotlib widget
+from functools import partial
 
-# + tags=[]
 import ipywidgets
 from IPython.display import display
 
@@ -85,7 +66,7 @@ routes:
     electrical:
         settings:
             separation: 20
-            layer: [31, 0]
+            layer: [41, 0]
             width: 10
         links:
             tl,e3: tr,e1
@@ -98,31 +79,33 @@ routes:
 """
 
 out = ipywidgets.Output()
-display(x, out)
+display_widget = ipywidgets.VBox([x, out])
+display(display_widget)
 
 
-def f(change, out=out):
+def update_output(change):
+    out.clear_output(wait=True)  # Clear the previous output
+
     try:
-        c = gf.read.from_yaml(change["new"])
-        # clear_output()
-        fig = c.plot()
-        c.show(show_ports=True)
-        out.clear_output()
-    except Exception as e:
-        out.clear_output()
+        circuit = gf.read.from_yaml(change["new"])
+        circuit.show(show_ports=True)
+        image = circuit.plot_klayout()
         with out:
-            display(e)
+            display(image)
+    except Exception as e:
+        error_message = f"An error occurred: {e}"
+        with out:
+            display(error_message)
 
 
-x.observe(f, "value")
-f({"new": x.value})
+x.observe(update_output, "value")
+update_output({"new": x.value})
 # -
 
 # Lets start by defining the `instances` and `placements` section in YAML
 #
 # Lets place an `mmi_long` where you can place the `W0` port at `x=20, y=10`
 
-# + tags=[]
 x.value = """
 name: mmis
 instances:
@@ -145,7 +128,6 @@ placements:
         mirror: False
 """
 display(x, out)
-# -
 
 x.value = """
 name: mmi_mirror
@@ -399,16 +381,15 @@ routes:
 """
 
 display(x, out)
-
-
 # -
 
 # You can also add custom component_factories to `gf.read.from_yaml`
+#
 
 
 # +
 @gf.cell
-def pad_new(size=(100, 100), layer=gf.LAYER.WG):
+def pad_new(size=(100, 100), layer=(1, 0)):
     c = gf.Component()
     compass = c << gf.components.compass(size=size, layer=layer)
     c.ports = compass.ports
@@ -631,8 +612,8 @@ display(x, out)
 # You can leverage netlist defined components to define more complex circuits
 
 # +
-mmi1x2_faba = gf.partial(gf.components.mmi1x2, length_mmi=30)
-mmi2x2_faba = gf.partial(gf.components.mmi2x2, length_mmi=30)
+mmi1x2_faba = partial(gf.components.mmi1x2, length_mmi=30)
+mmi2x2_faba = partial(gf.components.mmi2x2, length_mmi=30)
 gf.get_active_pdk().register_cells(mmi1x2_faba=mmi1x2_faba, mmi2x2_faba=mmi2x2_faba)
 
 x.value = """
@@ -664,7 +645,7 @@ display(x, out)
 # -
 
 c = gf.components.mzi()
-c
+c.plot()
 
 c.plot_netlist()
 
@@ -672,38 +653,14 @@ n = c.get_netlist()
 
 print(c.get_netlist().keys())
 
-# ## variables
+# ## Jinja Pcells
 #
-#
-# You can define a global variables `settings` in your YAML file, and use the variable in the other YAML settings by using `${settings.length_mmi}`
+# You use jinja templates in YAML cells to define Pcells.
 
 # +
-x.value = """
-settings:
-    length_mmi: 10
-
-instances:
-    mmi_long:
-      component: mmi1x2
-      settings:
-        width_mmi: 4.5
-        length_mmi: ${settings.length_mmi}
-    mmi_short:
-      component: mmi1x2
-      settings:
-        width_mmi: 4.5
-        length_mmi: 5
-"""
-
-display(x, out)
-# -
-
-# # `cell_from_yaml_template`: Jinja-template-based Parser
-# An optional parser variant is also available which is capable of parsing jinja templating directives within the yaml-based cells. This can give python-like flexibility inside the otherwise declaratively-defined yaml circuit syntax.
-
-# +
-from gdsfactory.read import cell_from_yaml_template
 from IPython.display import Code
+
+from gdsfactory.read import cell_from_yaml_template
 
 gf.clear_cache()
 
@@ -749,9 +706,7 @@ Code(filename=pic_filename, language="yaml+jinja")
 
 # You'll see that this generated a python function, with a real signature, default arguments, docstring and all!
 
-# +
-# pic_cell?
-# -
+help(pic_cell)
 
 # You can invoke this cell without arguments to see the default implementation
 
@@ -819,17 +774,14 @@ Code(filename=pic_filename, language="yaml+jinja")
 # -
 
 bc = big_cell()
-bc
+bc.plot()
 
 bc2 = big_cell(
     length_mmis=[10, 20, 40, 100, 200, 150, 10, 40],
     spacing_mmi=60,
     mmi_component="demo_jinja",
 )
-bc2
-
-# # Choosing your preferred yaml parser
-#
+bc2.plot()
 
 # In general, the jinja-yaml parser has a superset of the functionalities and syntax of the standard yaml parser. The one notable exception is with `settings`. When reading any yaml files with `settings` blocks, the default settings will be read and applied, but they will not be settable, as the jinja parser has a different mechanism for setting injection with the `default_settings` block and jinja2.
 
@@ -847,7 +799,3 @@ Code(filename=pic_filename, language="yaml")
 
 retro_cell()  # this is fine-- because cell_from_yaml_template internally calls from_yaml, cells should work from their default state
 # retro_cell(length_mmi=15) # this fails-- you must use "default_settings" and jinja syntax with the yaml-jinja parser for settings to be settable
-
-# Because of this incompatibility, you must choose one parser or another to be used by default at the scope of the PDK.
-
-gf.get_active_pdk().circuit_yaml_parser = cell_from_yaml_template

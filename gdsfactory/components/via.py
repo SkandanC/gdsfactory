@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from functools import partial
 
 import gdsfactory as gf
 from gdsfactory.component import Component
@@ -9,12 +9,12 @@ from gdsfactory.typings import LayerSpec
 
 @gf.cell
 def via(
-    size: Tuple[float, float] = (0.7, 0.7),
-    spacing: Optional[Tuple[float, float]] = (2.0, 2.0),
-    gap: Optional[Tuple[float, float]] = None,
+    size: tuple[float, float] = (0.7, 0.7),
+    spacing: tuple[float, float] | None = (2.0, 2.0),
+    gap: tuple[float, float] | None = None,
     enclosure: float = 1.0,
     layer: LayerSpec = "VIAC",
-    bbox_layers: Optional[Tuple[Tuple[int, int], ...]] = None,
+    bbox_layers: tuple[tuple[int, int], ...] | None = None,
     bbox_offset: float = 0,
 ) -> Component:
     """Rectangular via.
@@ -71,9 +71,9 @@ def via(
     return c
 
 
-viac = gf.partial(via, layer="VIAC")
-via1 = gf.partial(via, layer="VIA1", enclosure=2)
-via2 = gf.partial(via, layer="VIA2")
+viac = partial(via, layer="VIAC")
+via1 = partial(via, layer="VIA1", enclosure=2)
+via2 = partial(via, layer="VIA2")
 
 
 if __name__ == "__main__":

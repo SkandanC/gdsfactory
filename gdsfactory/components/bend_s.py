@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import copy
+
 import numpy as np
 
 import gdsfactory as gf
 from gdsfactory.cell import cell
 from gdsfactory.component import Component
 from gdsfactory.components.bezier import bezier
-from gdsfactory.typings import CrossSectionSpec, Float2
 from gdsfactory.config import logger
+from gdsfactory.typings import CrossSectionSpec, Float2
 
 
 @cell
@@ -65,6 +66,7 @@ def bend_s(
 def get_min_sbend_size(
     size: Float2 = (None, 10.0),
     cross_section: CrossSectionSpec = "strip",
+    num_points: int = 100,
     **kwargs,
 ):
     """
@@ -73,6 +75,7 @@ def get_min_sbend_size(
      Args:
         size: in x and y direction. One of them is None, which is the size we need to figure out.
         cross_section: spec.
+        num_points: number of points to iterate over between max_size and 0.1 * max_size
         kwargs: cross_section settings.
 
     """
@@ -99,7 +102,7 @@ def get_min_sbend_size(
     # the max size corresponds to an ellipsoid
     max_size = 2.5 * np.sqrt(np.abs(min_radius * known_s))
 
-    sizes = np.linspace(max_size, 0.1 * max_size, 100)
+    sizes = np.linspace(max_size, 0.1 * max_size, num_points)
 
     for i, s in enumerate(sizes):
         sz = copy.deepcopy(size)
@@ -118,7 +121,8 @@ def get_min_sbend_size(
 
 
 if __name__ == "__main__":
-    c = bend_s(bbox_offsets=[0.5], bbox_layers=[(111, 0)], width=2)
+    c = bend_s()
+    # c = bend_s(bbox_offsets=[0.5], bbox_layers=[(111, 0)], width=2)
     # c = bend_s(size=[10, 2.5])  # 10um bend radius
     # c = bend_s(size=[20, 3], cross_section="rib")  # 10um bend radius
     # c.pprint()

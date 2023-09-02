@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from functools import partial
+
 import gdsfactory as gf
 from gdsfactory.component import Component
 from gdsfactory.components.bend_circular import bend_circular
 from gdsfactory.components.bend_euler import bend_euler
 from gdsfactory.components.straight import straight
-from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Optional
+from gdsfactory.typings import ComponentSpec, CrossSectionSpec
 
 
 @gf.cell
@@ -15,7 +17,7 @@ def coupler90(
     bend: ComponentSpec = bend_euler,
     straight: ComponentSpec = straight,
     cross_section: CrossSectionSpec = "strip",
-    bend_cross_section: Optional[CrossSectionSpec] = None,
+    bend_cross_section: CrossSectionSpec | None = None,
     **kwargs,
 ) -> Component:
     r"""Straight coupled to a bend.
@@ -66,7 +68,7 @@ def coupler90(
     return c
 
 
-coupler90circular = gf.partial(coupler90, bend=bend_circular)
+coupler90circular = partial(coupler90, bend=bend_circular)
 
 
 if __name__ == "__main__":

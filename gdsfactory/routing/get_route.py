@@ -34,11 +34,11 @@ To generate a straight route:
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Optional, Union
-from pydantic import validate_arguments
 
 import numpy as np
+from pydantic import validate_call
 
 import gdsfactory as gf
 from gdsfactory.component import Component
@@ -59,18 +59,18 @@ from gdsfactory.typings import (
 )
 
 
-@validate_arguments
+@validate_call
 def get_route(
     input_port: Port,
     output_port: Port,
     bend: ComponentSpec = bend_euler,
-    with_sbend: bool = True,
+    with_sbend: bool = False,
     straight: ComponentSpec = straight_function,
-    taper: Optional[ComponentSpec] = None,
-    start_straight_length: float = 0.01,
-    end_straight_length: float = 0.01,
-    min_straight_length: float = 0.01,
-    cross_section: Union[CrossSectionSpec, MultiCrossSectionAngleSpec] = "strip",
+    taper: ComponentSpec | None = None,
+    start_straight_length: float | None = None,
+    end_straight_length: float | None = None,
+    min_straight_length: float | None = None,
+    cross_section: CrossSectionSpec | MultiCrossSectionAngleSpec = "strip",
     **kwargs,
 ) -> Route:
     """Returns a Manhattan Route between 2 ports.
@@ -111,14 +111,12 @@ def get_route(
         if isinstance(bend, Component)
         else gf.get_component(bend, cross_section=cross_section, **kwargs)
     )
-
     if taper:
-        if isinstance(cross_section, list):
+        if isinstance(cross_section, tuple | list):
             raise ValueError(
                 "Tapers not implemented for routes made from multiple cross_sections."
             )
         x = gf.get_cross_section(cross_section, **kwargs)
-
         taper_length = x.taper_length
         width1 = input_port.width
         auto_widen = x.auto_widen
@@ -151,21 +149,15 @@ def get_route(
 get_route_electrical = partial(
     get_route,
     bend=wire_corner,
-    start_straight_length=10,
-    end_straight_length=10,
     cross_section="metal_routing",
     taper=None,
-    min_straight_length=2.0,
 )
 
 get_route_electrical_m2 = partial(
     get_route,
     bend=wire_corner,
-    start_straight_length=25,
-    end_straight_length=25,
     cross_section=metal2,
     taper=None,
-    min_straight_length=2.0,
 )
 
 get_route_electrical_multilayer = partial(
@@ -179,7 +171,7 @@ def get_route_from_waypoints(
     waypoints: Coordinates,
     bend: Callable = bend_euler,
     straight: Callable = straight_function,
-    taper: Optional[Callable] = taper_function,
+    taper: Callable | None = taper_function,
     cross_section: CrossSectionSpec = "strip",
     **kwargs,
 ) -> Route:
@@ -191,12 +183,12 @@ def get_route_from_waypoints(
     gf.routing.
 
     Args:
-        waypoints: Coordinates that define the route
-        bend: function that returns bends
-        straight: function that returns straight waveguides
-        taper: function that returns tapers
-        cross_section:
-        kwargs: cross_section settings
+        waypoints: Coordinates that define the route.
+        bend: function that returns bends.
+        straight: function that returns straight waveguides.
+        taper: function that returns tapers.
+        cross_section: spec.
+        kwargs: cross_section settings.
 
     .. plot::
         :include-source:
@@ -272,15 +264,15 @@ def get_route_from_waypoints(
     )
 
 
-get_route_from_waypoints_electrical = gf.partial(
+get_route_from_waypoints_electrical = partial(
     get_route_from_waypoints, bend=wire_corner, cross_section="metal_routing"
 )
 
-get_route_from_waypoints_electrical_m2 = gf.partial(
+get_route_from_waypoints_electrical_m2 = partial(
     get_route_from_waypoints, bend=wire_corner, cross_section=metal2
 )
 
-get_route_from_waypoints_electrical_multilayer = gf.partial(
+get_route_from_waypoints_electrical_multilayer = partial(
     get_route_from_waypoints,
     bend=via_corner,
     cross_section=[(metal2, (0, 180)), (metal3, (90, 270))],
@@ -309,8 +301,6 @@ if __name__ == "__main__":
     # c.add(route.references)
     # c.show()
 
-    import gdsfactory as gf
-
     c = gf.Component("sample_connect")
     mmi1 = c << gf.components.mmi1x2()
     mmi2 = c << gf.components.mmi1x2()
@@ -326,4 +316,5 @@ if __name__ == "__main__":
         radius=30,
     )
     c.add(route.references)
+    print([i.name for i in c.get_dependencies()])
     c.show()

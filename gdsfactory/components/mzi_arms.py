@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from functools import partial
 
 from gdsfactory.cell import cell
 from gdsfactory.component import Component
@@ -18,11 +18,11 @@ def mzi_arms(
     length_x: float = 0.1,
     bend: ComponentSpec = bend_euler,
     straight: ComponentSpec = straight_function,
-    straight_y: Optional[ComponentSpec] = None,
-    straight_x_top: Optional[ComponentSpec] = None,
-    straight_x_bot: Optional[ComponentSpec] = None,
+    straight_y: ComponentSpec | None = None,
+    straight_x_top: ComponentSpec | None = None,
+    straight_x_bot: ComponentSpec | None = None,
     splitter: ComponentSpec = mmi1x2,
-    combiner: Optional[ComponentSpec] = None,
+    combiner: ComponentSpec | None = None,
     with_splitter: bool = True,
     delta_yright: float = 0,
     **kwargs,
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     # print(delta_length)
     # c = mzi_arms(delta_length=delta_length, with_splitter=False)
     # c.pprint_netlist()
-    mmi2x2 = gf.partial(gf.components.mmi2x2, width_mmi=5, gap_mmi=2)
+    mmi2x2 = partial(gf.components.mmi2x2, width_mmi=5, gap_mmi=2)
     c = mzi_arms(delta_length=10, combiner=mmi2x2)
     c.show(show_ports=True)
 

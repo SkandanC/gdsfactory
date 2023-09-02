@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from functools import partial
 
 import numpy as np
 
@@ -9,11 +9,11 @@ from gdsfactory.components.via_corner import via_corner
 from gdsfactory.port import Port
 from gdsfactory.routing.manhattan import round_corners
 from gdsfactory.typings import (
+    STEP_DIRECTIVES,
     ComponentSpec,
     CrossSectionSpec,
     MultiCrossSectionAngleSpec,
     Route,
-    STEP_DIRECTIVES,
     Step,
 )
 
@@ -21,10 +21,10 @@ from gdsfactory.typings import (
 def get_route_from_steps(
     port1: Port,
     port2: Port,
-    steps: Optional[List[Step]] = None,
+    steps: list[Step] | None = None,
     bend: ComponentSpec = "bend_euler",
-    taper: Optional[ComponentSpec] = "taper",
-    cross_section: Union[CrossSectionSpec, MultiCrossSectionAngleSpec] = "strip",
+    taper: ComponentSpec | None = "taper",
+    cross_section: CrossSectionSpec | MultiCrossSectionAngleSpec = "strip",
     **kwargs,
 ) -> Route:
     """Returns a route formed by the given waypoints steps.
@@ -128,11 +128,11 @@ def get_route_from_steps(
     )
 
 
-get_route_from_steps_electrical = gf.partial(
+get_route_from_steps_electrical = partial(
     get_route_from_steps, bend="wire_corner", taper=None, cross_section="metal3"
 )
 
-get_route_from_steps_electrical_multilayer = gf.partial(
+get_route_from_steps_electrical_multilayer = partial(
     get_route_from_steps,
     bend=via_corner,
     taper=None,

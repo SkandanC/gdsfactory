@@ -1,19 +1,55 @@
-name: grating_coupler_ellipti_514a8b8c
+name: grating_coupler_elliptical_3bc3e33a
+ports:
+  o1:
+    center:
+    - 0.0
+    - 0.0
+    layer:
+    - 34
+    - 0
+    name: o1
+    orientation: 180
+    port_type: optical
+    shear_angle: null
+    width: 1.0
+  opt_te_1554_15:
+    center:
+    - 16.6
+    - 0.0
+    layer:
+    - 34
+    - 0
+    name: opt_te_1554_15
+    orientation: 0
+    port_type: opt_te_1554_15
+    shear_angle: null
+    width: 10
 settings:
   changed:
     cross_section:
       function: cross_section
       settings:
+        add_bbox: null
         add_pins:
           function: add_pins
+          settings:
+            function:
+              function: add_pin_rectangle_inside
+              settings:
+                layer_label: null
+                pin_length: 0.001
+            pin_length: 0.5
         bbox_layers:
         - - 36
           - 0
         bbox_offsets:
         - 3
+        info:
+          type: strip
         layer:
         - 34
         - 0
+        name: strip
         width: 1.0
     grating_line_width: 0.6
     layer_slab: null
@@ -39,16 +75,27 @@ settings:
     cross_section:
       function: cross_section
       settings:
+        add_bbox: null
         add_pins:
           function: add_pins
+          settings:
+            function:
+              function: add_pin_rectangle_inside
+              settings:
+                layer_label: null
+                pin_length: 0.001
+            pin_length: 0.5
         bbox_layers:
         - - 36
           - 0
         bbox_offsets:
         - 3
+        info:
+          type: strip
         layer:
         - 34
         - 0
+        name: strip
         width: 1.0
     fiber_angle: 15.0
     grating_line_width: 0.6
@@ -69,4 +116,4 @@ settings:
     wavelength: 1.554
   info_version: 2
   module: gdsfactory.components.grating_coupler_elliptical
-  name: grating_coupler_ellipti_514a8b8c
+  name: grating_coupler_elliptical_3bc3e33a

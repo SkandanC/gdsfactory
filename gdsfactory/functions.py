@@ -3,7 +3,7 @@
 There are two types of functions:
 
 - decorators: return the original component
-- containers: return a new component
+- containers: return a new component that contains the old one.
 
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from functools import lru_cache, partial
 
 import numpy as np
 from omegaconf import OmegaConf
-from pydantic import validate_arguments
+from pydantic import validate_call
 
 from gdsfactory import ComponentReference
 from gdsfactory.cell import cell
@@ -26,8 +26,6 @@ from gdsfactory.typings import (
     ComponentSpec,
     Float2,
     LayerSpec,
-    List,
-    Optional,
     Strs,
 )
 
@@ -74,11 +72,11 @@ def add_text(
 
 
 def add_texts(
-    components: List[ComponentSpec],
+    components: list[ComponentSpec],
     prefix: str = "",
     index0: int = 0,
     **kwargs,
-) -> List[Component]:
+) -> list[Component]:
     """Return a list of Component with text labels.
 
     Args:
@@ -169,7 +167,7 @@ def move(
     component: Component,
     origin=(0, 0),
     destination=None,
-    axis: Optional[Axis] = None,
+    axis: Axis | None = None,
 ) -> Component:
     """Return new Component with a moved reference to the original component.
 
@@ -226,12 +224,12 @@ def update_info(component: Component, **kwargs) -> Component:
     return component
 
 
-@validate_arguments
+@validate_call
 def add_settings_label(
     component: ComponentSpec = straight,
     layer_label: LayerSpec = (66, 0),
-    settings: Optional[Strs] = None,
-    ignore: Optional[Strs] = ("decorator",),
+    settings: Strs | None = None,
+    ignore: Strs | None = ("decorator",),
 ) -> Component:
     """Add a settings label to a component. Use it as a decorator.
 

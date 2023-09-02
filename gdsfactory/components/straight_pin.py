@@ -1,7 +1,7 @@
 """Straight Doped PIN waveguide."""
 from __future__ import annotations
 
-from typing import Optional
+from functools import partial
 
 import gdsfactory as gf
 from gdsfactory.component import Component
@@ -18,7 +18,7 @@ def straight_pin(
     via_stack: ComponentSpec = via_stack_slab_m3,
     via_stack_width: float = 10.0,
     via_stack_spacing: float = 2,
-    taper: Optional[ComponentSpec] = taper_strip_to_ridge,
+    taper: ComponentSpec | None = taper_strip_to_ridge,
     **kwargs,
 ) -> Component:
     """Returns rib waveguide with doping and via_stacks used for PN and PIN modulators.
@@ -87,7 +87,7 @@ def straight_pin(
     return c
 
 
-straight_pn = gf.partial(straight_pin, cross_section=pn, length=2000)
+straight_pn = partial(straight_pin, cross_section=pn, length=2000)
 
 if __name__ == "__main__":
     c = straight_pin(length=40)

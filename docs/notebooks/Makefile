@@ -1,22 +1,30 @@
 format:
-	jupytext --pipe black *.ipynb
-	jupytext --pipe black **/*.ipynb
+	jupytext --pipe black *.py
+
+clear:
+	jupytext --clear-metadata *.py
 
 sync:
 	jupytext --sync *.ipynb
 
-python:
-	jupytext **/*.ipynb --to py
+md_to_py:
+	jupytext *.md --to py
 
 notebooks:
-	jupytext *.py --to ipynb
-	jupytext **/*.py --to ipynb
+	jupytext *.md --to ipynb
 
 markdown:
-	jupytext *.ipynb --to md
-	jupytext **/*.ipynb --to md
-	jupytext **/*.ipynb --to md
+	jupytext *.py --to md
+	jupytext **/*.py --to md
+	jupytext **/*.py --to md
 
 clean:
 	nbstripout --drop-empty-cells *.ipynb
 	nbstripout --drop-empty-cells **/*.ipynb
+
+rm_ipynb:
+	rm *.ipynb
+	rm **/*.ipynb
+
+set:
+	jupytext --set-formats md,ipynb *.md

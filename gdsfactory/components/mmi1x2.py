@@ -3,27 +3,28 @@ from __future__ import annotations
 import gdsfactory as gf
 from gdsfactory.add_padding import get_padding_points
 from gdsfactory.component import Component
-from gdsfactory.components.straight import straight
+from gdsfactory.components.straight import straight as straight_function
 from gdsfactory.components.taper import taper as taper_function
-from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Optional
+from gdsfactory.typings import ComponentFactory, CrossSectionSpec
 
 
 @gf.cell
 def mmi1x2(
-    width: Optional[float] = None,
+    width: float | None = None,
     width_taper: float = 1.0,
     length_taper: float = 10.0,
     length_mmi: float = 5.5,
     width_mmi: float = 2.5,
     gap_mmi: float = 0.25,
-    taper: ComponentSpec = taper_function,
+    taper: ComponentFactory = taper_function,
+    straight: ComponentFactory = straight_function,
     with_bbox: bool = True,
     cross_section: CrossSectionSpec = "strip",
 ) -> Component:
-    r"""Mmi 1x2.
+    r"""1x2 MultiMode Interferometer (MMI).
 
     Args:
-        width: input and output straight width.
+        width: input and output straight width. Defaults to cross_section width.
         width_taper: interface between input straights and mmi region.
         length_taper: into the mmi region.
         length_mmi: in x direction.
@@ -43,11 +44,11 @@ def mmi1x2(
                 ________
                |        |
                |         \__
-               |          __  E1
+               |          __  o2
             __/          /_ _ _ _
-         W0 __          | _ _ _ _| gap_mmi
+         o1 __          | _ _ _ _| gap_mmi
               \          \__
-               |          __  E0
+               |          __  o3
                |         /
                |________|
 
@@ -62,8 +63,7 @@ def mmi1x2(
     x = gf.get_cross_section(cross_section)
     width = width or x.width
 
-    taper = gf.get_component(
-        taper,
+    _taper = taper(
         length=length_taper,
         width1=width,
         width2=w_taper,
@@ -74,8 +74,7 @@ def mmi1x2(
     )
 
     a = gap_mmi / 2 + width_taper / 2
-    mmi = c << gf.get_component(
-        straight,
+    mmi = c << straight(
         length=length_mmi,
         width=w_mmi,
         cross_section=cross_section,
@@ -112,7 +111,7 @@ def mmi1x2(
     ]
 
     for port in ports:
-        taper_ref = c << taper
+        taper_ref = c << _taper
         taper_ref.connect(port="o2", destination=port)
         c.add_port(name=port.name, port=taper_ref.ports["o1"])
         c.absorb(taper_ref)
@@ -142,17 +141,12 @@ def mmi1x2(
 
 
 if __name__ == "__main__":
-    # c = mmi1x2(cross_section=dict(cross_section="rib"))
-    c = mmi1x2()
+    import gdsfactory as gf
+
+    c = gf.components.mmi1x2(cross_section="rib_conformal")
+
+    # print(c.xmin)
+    # c.xmin = 0
+    # print(c.xmin)
+
     c.show(show_ports=True)
-
-    # c.pprint_ports()
-
-    # c2 = gf.components.extend_ports(c)
-    # c2.show()
-
-    # print(c.ports)
-    # c = mmi1x2_biased()
-    # print(c.get_optical_ports())
-    # c.write_gds(gf.PATH.gdsdir / "mmi1x2.gds")
-    # print(c.ports["o1"].cross_section.info)

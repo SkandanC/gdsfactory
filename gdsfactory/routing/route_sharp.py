@@ -1,8 +1,6 @@
 """based on phidl.routing."""
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 import numpy as np
 
 import gdsfactory as gf
@@ -65,13 +63,14 @@ def path_L(port1: Port, port2: Port) -> Path:
 
 
 def path_U(port1: Port, port2: Port, length1=200) -> Path:
-    """Return waypoint path between port1 and port2 in a U shape. Useful when ports face the same direction or toward each other.
+    """Return waypoint path between port1 and port2 in a U shape.
+
+    Useful when ports face the same direction or toward each other.
 
     Args:
         port1: start port.
         port2: end port.
-        length1: Length of segment exiting port1.
-            Should be larger than bend radius.
+        length1: Length of segment exiting port1. Should be larger than bend radius.
 
     """
     delta_orientation = np.round(
@@ -153,8 +152,10 @@ def path_C(port1: Port, port2: Port, length1=100, left1=100, length2=100) -> Pat
     return Path(np.array([pt1, pt2, pt3, pt4, pt5, pt6]))
 
 
-def path_manhattan(port1: Port, port2: Port, radius) -> Path:
-    """Return waypoint path between port1 and port2 using manhattan routing. Routing is performed using straight, L, U, J, or C  waypoint path as needed. Ports must face orthogonal or parallel directions.
+def path_manhattan(port1: Port, port2: Port, radius: float) -> Path:
+    """Return waypoint path between port1 and port2 using manhattan routing.
+    Routing uses straight, L, U, J, or C waypoint path as needed.
+    Ports must face orthogonal or parallel directions.
 
     Args:
         port1: start port.
@@ -221,8 +222,8 @@ def path_manhattan(port1: Port, port2: Port, radius) -> Path:
 
 
 def path_Z(port1: Port, port2: Port, length1=100, length2=100) -> Path:
-    """Return waypoint path between port1 and port2 in a Z shape. Ports can \
-    have any relative orientation.
+    """Return waypoint path between port1 and port2 in a Z shape.
+    Ports can have any relative orientation.
 
     Args:
         port1: start port.
@@ -269,12 +270,12 @@ def path_V(port1: Port, port2: Port) -> Path:
 def route_sharp(
     port1: Port,
     port2: Port,
-    width: Optional[float] = None,
+    width: float | None = None,
     path_type: str = "manhattan",
     manual_path=None,
-    layer: Optional[LayerSpec] = None,
-    cross_section: Optional[CrossSectionSpec] = None,
-    port_names: Tuple[str, str] = ("o1", "o2"),
+    layer: LayerSpec | None = None,
+    cross_section: CrossSectionSpec | None = None,
+    port_names: tuple[str, str] = ("o1", "o2"),
     **kwargs,
 ) -> Component:
     """Returns Component route between ports.
@@ -293,16 +294,17 @@ def route_sharp(
         layer: Layer to put route on.
         kwargs: Keyword arguments passed to the waypoint path function.
 
-        Method of waypoint path creation. Should be one of
-        - manhattan: automatic manhattan routing (see path_manhattan() ).
-        - L: L-shaped path for orthogonal ports that can be directly connected.
-        - U: U-shaped path for parallel or facing ports.
-        - J: J-shaped path for orthogonal ports that cannot be directly connected.
-        - C: C-shaped path for ports that face away from each other.
-        - Z: Z-shaped path with three segments for ports at any angles.
-        - V: V-shaped path with two segments for ports at any angles.
-        - straight: straight path for ports that face each other.
-        - manual: use an explicit waypoint path provided in manual_path.
+    Method of waypoint path creation. Should be one of:
+
+     - manhattan: automatic manhattan routing (see path_manhattan() ).
+     - L: L-shaped path for orthogonal ports that can be directly connected.
+     - U: U-shaped path for parallel or facing ports.
+     - J: J-shaped path for orthogonal ports that cannot be directly connected.
+     - C: C-shaped path for ports that face away from each other.
+     - Z: Z-shaped path with three segments for ports at any angles.
+     - V: V-shaped path with two segments for ports at any angles.
+     - straight: straight path for ports that face each other.
+     - manual: use an explicit waypoint path provided in manual_path.
 
     .. plot::
         :include-source:

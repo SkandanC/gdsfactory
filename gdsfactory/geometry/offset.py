@@ -5,7 +5,7 @@ from __future__ import annotations
 import gdstk
 
 import gdsfactory as gf
-from gdsfactory.component_layout import Polygon, _parse_layer
+from gdsfactory.component_layout import Polygon
 from gdsfactory.typings import Component, ComponentReference, LayerSpec
 
 
@@ -19,17 +19,14 @@ def offset(
     tolerance: int = 2,
     layer: LayerSpec = "WG",
 ) -> Component:
-    """Returns an element containing all polygons with an offset Shrinks or \
-    expands a polygon or set of polygons.
+    """Returns new Component with polygons eroded or dilated by an offset.
 
     Args:
         elements: Component(/Reference), list of Component(/Reference), or Polygon
           Polygons to offset or Component containing polygons to offset.
         distance: Distance to offset polygons. Positive values expand, negative shrink.
+        use_union: If True, use union of all polygons to offset. If False, offset
         precision: Desired precision for rounding vertex coordinates.
-        num_divisions: The number of divisions with which the geometry is divided into
-          multiple rectangular regions. This allows for each region to be
-          processed sequentially, which is more computationally efficient.
         join: {'miter', 'bevel', 'round'} Type of join used to create polygon offset
         tolerance: For miter joints, this number must be at least 2 represents the
           maximal distance in multiples of offset between new vertices and their
@@ -41,20 +38,36 @@ def offset(
     Returns:
         Component containing a polygon(s) with the specified offset applied.
 
+    .. plot::
+      :include-source:
+
+      import gdsfactory as gf
+      c = gf.Component()
+      layer_slab = (2, 0)
+      c1 = gf.components.coupler_ring(
+          cladding_layers=[layer_slab], cladding_offsets=[0.5]
+      )
+      d = 0.8
+      c2 = gf.geometry.offset(c1, distance=+d, layer=layer_slab)
+      c3 = gf.geometry.offset(c2, distance=-d, layer=layer_slab)
+
+      c << c1.extract(layers=("WG",))
+      c << c3
+      c.plot_matplotlib()
+
     """
     if not isinstance(elements, list):
         elements = [elements]
     polygons_to_offset = []
     for e in elements:
-        if isinstance(e, (Component, ComponentReference)):
+        if isinstance(e, Component | ComponentReference):
             polygons_to_offset += e.get_polygons(by_spec=False)
-        elif isinstance(e, (Polygon, gdstk.Polygon)):
+        elif isinstance(e, Polygon | gdstk.Polygon):
             polygons_to_offset.append(e)
     if len(polygons_to_offset) == 0:
         return gf.Component("offset")
 
-    layer = gf.get_layer(layer)
-    gds_layer, gds_datatype = _parse_layer(layer)
+    gds_layer, gds_datatype = gf.get_layer(layer)
     p = gdstk.offset(
         polygons_to_offset,
         distance=distance,

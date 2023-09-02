@@ -30,14 +30,16 @@ def get_route_sbend(port1: Port, port2: Port, **kwargs) -> Route:
         mmi2.movey(5)
         route = gf.routing.get_route_sbend(mmi1.ports['o2'], mmi2.ports['o1'])
         c.add(route.references)
-        c.show()
         c.plot()
 
     """
     ysize = port2.center[1] - port1.center[1]
     xsize = port2.center[0] - port1.center[0]
-    size = (xsize, ysize)
 
+    # We need to act differently if the route is orthogonal in x
+    # or orthogonal in y
+
+    size = (xsize, ysize) if port1.orientation in [0, 180] else (ysize, -xsize)
     bend = bend_s(size=size, **kwargs)
 
     bend_ref = bend.ref()
